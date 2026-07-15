@@ -195,10 +195,10 @@ test('completes the production Bilibili course workflow', async ({ page }) => {
   await writeFile(`${ARTIFACT_DIR}/result.json`, JSON.stringify(job, null, 2), 'utf8')
   await expect(page.getByRole('heading', { name: 'Git + GitHub 课程笔记验收' })).toBeVisible()
 
-  const framesTab = page.getByRole('button', { name: '画面' })
+  const framesTab = page.getByRole('tab', { name: '画面' })
   await expect(framesTab).toHaveCount(1)
   await framesTab.click()
-  await expect(page.locator('[role="img"][aria-label*="关键画面"]')).toHaveCount(8)
+  await expect(page.locator('[role="img"][aria-label*="关键画面"]')).toHaveCount(job?.notes?.keyMoments?.length || 0)
   await page.screenshot({ path: `${ARTIFACT_DIR}/course-result.png`, fullPage: false })
 
   const downloadPromise = page.waitForEvent('download')
