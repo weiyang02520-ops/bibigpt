@@ -10,8 +10,13 @@ const Home: NextPage<{
 }> = ({ showSingIn }) => {
   const [analytics, setAnalytics] = useState<AnalyticsType | undefined>(undefined)
 
-  const { analytics: analyticsBrowser } = useAnalytics()
+  const { analytics: analyticsBrowser, enabled: analyticsEnabled } = useAnalytics()
   useEffect(() => {
+    if (!analyticsEnabled) {
+      setAnalytics(undefined)
+      return
+    }
+
     async function handleAnalyticsLoading(browser: AnalyticsBrowser) {
       try {
         const [response, ctx] = await browser
@@ -24,7 +29,7 @@ const Home: NextPage<{
       }
     }
     handleAnalyticsLoading(analyticsBrowser).catch(console.error)
-  }, [analyticsBrowser])
+  }, [analyticsBrowser, analyticsEnabled])
   return <SlugPage showSingIn={showSingIn} />
 }
 export default Home
