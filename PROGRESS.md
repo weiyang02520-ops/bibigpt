@@ -236,6 +236,32 @@ API route.
 - Because of that network limitation, production API verification and the required final browser E2E run on
   `BV1ySLc6QEcB` are still not complete.
 
+## 2026-07-16 Production course E2E hardening
+
+### Remote production evidence
+
+- Added a manual GitHub Actions smoke workflow because this machine's route to `*.vercel.app` is being reset.
+- Production smoke run `29439235438` passed against `https://bibigpt-six.vercel.app`.
+- The run verified that `BV1ySLc6QEcB` resolves as `local-asr`, has a duration above 2,500 seconds, exposes a bounded
+  Range audio proxy, and returns Bilibili preview frame sheets and timestamps.
+- Added a long-running Playwright workflow that persists browser BYOK fields, runs the production course flow, inspects
+  the IndexedDB job, downloads the Obsidian ZIP, validates Markdown and image files, and uploads acceptance evidence.
+
+### Defects found by the real browser workflow
+
+- The open-source Chromium build on GitHub Actions lacks AAC support, so the workflow now uses Google Chrome Stable.
+- Chrome can expose `navigator.gpu` without an available GPU adapter. The ASR worker now probes an adapter and falls
+  back to WASM if probing or WebGPU model initialization fails.
+- Transformers.js `4.2.0` has a known Whisper q8/WASM session-creation defect. Until the announced `4.3.0` fix is
+  published, WASM uses fp32 while WebGPU uses an fp32 encoder and q4 merged decoder.
+- Application TypeScript and the Next.js production build pass after both ASR compatibility changes.
+
+### Remaining acceptance
+
+- Re-deploy the latest ASR worker through the normal Git push/Vercel integration.
+- Re-run the complete `BV1ySLc6QEcB` browser workflow through transcription, chunk summaries, key frames and Obsidian
+  ZIP validation.
+
 ## 2026-07-16 Obsidian strategic goal
 
 - Obsidian is now a required final outcome of the course workflow, not an optional export.
