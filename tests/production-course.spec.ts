@@ -110,16 +110,34 @@ test('completes the production Bilibili course workflow', async ({ page }) => {
   })
 
   await page.goto(SITE_URL, { waitUntil: 'domcontentloaded', timeout: 60_000 })
-  await page.locator('#user-api-key').fill('mock-key')
+  const apiKeyInput = page.locator('#user-api-key')
+  const apiKeyVisibilityButton = page.locator('button[aria-label*="API Key"]')
+  await expect(apiKeyVisibilityButton).toHaveCount(1)
+  await apiKeyVisibilityButton.click()
+  await expect(apiKeyInput).toHaveAttribute('type', 'text')
+
+  await apiKeyInput.fill('mock-key')
   await page.locator('#user-api-base-url').fill('https://mock.invalid/v1')
   await page.locator('#model').fill('mock-model')
   await page.locator('#asrModel').selectOption('onnx-community/whisper-base')
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem('user-openai-apikey')))
+    .toBe(JSON.stringify('mock-key'))
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem('user-openai-base-url')))
+    .toBe(JSON.stringify('https://mock.invalid/v1'))
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem('user-openai-model')))
+    .toBe(JSON.stringify('mock-model'))
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem('user-asr-model')))
+    .toBe(JSON.stringify('onnx-community/whisper-base'))
 
   await page.reload({ waitUntil: 'domcontentloaded', timeout: 60_000 })
-  await expect(page.locator('#user-api-key')).toHaveValue('mock-key')
-  await expect(page.locator('#user-api-base-url')).toHaveValue('https://mock.invalid/v1')
-  await expect(page.locator('#model')).toHaveValue('mock-model')
-  await expect(page.locator('#asrModel')).toHaveValue('onnx-community/whisper-base')
+  await expect(page.locator('#user-api-key')).toHaveValue('mock-key', { timeout: 15_000 })
+  await expect(page.locator('#user-api-base-url')).toHaveValue('https://mock.invalid/v1', { timeout: 15_000 })
+  await expect(page.locator('#model')).toHaveValue('mock-model', { timeout: 15_000 })
+  await expect(page.locator('#asrModel')).toHaveValue('onnx-community/whisper-base', { timeout: 15_000 })
 
   const videoInput = page.locator('form > input[type="text"]')
   await expect(videoInput).toHaveCount(1)

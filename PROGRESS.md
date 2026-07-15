@@ -140,6 +140,15 @@ API route.
   `@tootallnate/quickjs-emscripten`. No global npm packages were changed to work around it; this does not affect the
   already verified production deployment.
 
+## 2026-07-16 Project continuity baseline
+
+- Registered `BibiGPT-v1` as the only writable canonical root.
+- Frozen `..\bibigpt-deploy`; it must not be used for development, Git push, or Vercel deployment.
+- Imported the legacy branch into local ref `archive/bibigpt-deploy-20260715` at commit `329b65f`.
+- Preserved the legacy dirty `PROGRESS.md` and backup files under the workspace-governance rollback backup; `.env.local` was deliberately excluded.
+- Added `PROJECT_STATE.json` and project-level `MEMORY/` records.
+- The canonical working tree was clean and matched `origin/main` at `8d93875` before these governance files were added.
+
 ## 2026-07-15 Course workflow goal
 
 ### Goal and backup
