@@ -40,6 +40,18 @@ const postError = (requestId: string | null, error: unknown) => {
   })
 }
 
+const canUseWebGpu = async () => {
+  if (typeof navigator === 'undefined' || !('gpu' in navigator)) {
+    return false
+  }
+  try {
+    const gpu = (navigator as Navigator & { gpu?: { requestAdapter: () => Promise<unknown | null> } }).gpu
+    return Boolean(await gpu?.requestAdapter())
+  } catch {
+    return false
+  }
+}
+
 const loadModel = async (modelId: string) => {
   if (transcriber && loadedModelId === modelId) {
     self.postMessage({ type: 'ready', modelId, device: selectedDevice })
@@ -50,25 +62,37 @@ const loadModel = async (modelId: string) => {
   transcriber = null
   loadedModelId = ''
 
-  selectedDevice = typeof navigator !== 'undefined' && 'gpu' in navigator ? 'webgpu' : 'wasm'
-  if (selectedDevice === 'wasm' && env.backends.onnx.wasm) {
-    env.backends.onnx.wasm.numThreads = 1
+  const progressCallback = (progress: any) => {
+    self.postMessage({
+      type: 'model-progress',
+      status: progress.status,
+      file: typeof progress.file === 'string' ? progress.file : null,
+      progress: typeof progress.progress === 'number' ? progress.progress : null,
+      loaded: typeof progress.loaded === 'number' ? progress.loaded : null,
+      total: typeof progress.total === 'number' ? progress.total : null,
+    })
+  }
+  const createTranscriber = (device: 'webgpu' | 'wasm') => {
+    if (device === 'wasm' && env.backends.onnx.wasm) {
+      env.backends.onnx.wasm.numThreads = 1
+    }
+    return pipeline('automatic-speech-recognition', modelId, {
+      device,
+      dtype: device === 'webgpu' ? 'q4' : 'q8',
+      progress_callback: progressCallback,
+    })
   }
 
-  transcriber = await pipeline('automatic-speech-recognition', modelId, {
-    device: selectedDevice,
-    dtype: selectedDevice === 'webgpu' ? 'q4' : 'q8',
-    progress_callback: (progress: any) => {
-      self.postMessage({
-        type: 'model-progress',
-        status: progress.status,
-        file: typeof progress.file === 'string' ? progress.file : null,
-        progress: typeof progress.progress === 'number' ? progress.progress : null,
-        loaded: typeof progress.loaded === 'number' ? progress.loaded : null,
-        total: typeof progress.total === 'number' ? progress.total : null,
-      })
-    },
-  })
+  selectedDevice = (await canUseWebGpu()) ? 'webgpu' : 'wasm'
+  try {
+    transcriber = await createTranscriber(selectedDevice)
+  } catch (error) {
+    if (selectedDevice !== 'webgpu') {
+      throw error
+    }
+    selectedDevice = 'wasm'
+    transcriber = await createTranscriber(selectedDevice)
+  }
   loadedModelId = modelId
   self.postMessage({ type: 'ready', modelId, device: selectedDevice })
 }
