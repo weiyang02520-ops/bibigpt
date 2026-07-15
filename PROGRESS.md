@@ -113,8 +113,29 @@ API route.
 - In-app browser verification passed on desktop and 390 px mobile layouts. It also confirmed masked Key rendering,
   custom-model persistence, the privacy page and the full local result workflow.
 
-### Remaining before completion
+### Production deployment and real-provider verification
 
-- Push the reviewed commit to GitHub and wait for the Vercel production deployment.
-- Verify YouTube subtitle extraction from the Vercel runtime.
-- Use the user's real API Key, Base URL and model ID for one final production summary. Do not record the secret.
+- Final verification rollback copy: `backups/20260715-184832-final-validation/` (intentionally untracked).
+- Commit `6095ccc` is on `main` and the production alias `https://bibigpt-six.vercel.app` serves the reviewed BYOK build.
+- Current production deployment: `dpl_AwdtTB7ygZUMRwa57A2T1K64SGNe`, status `Ready`.
+- The Vercel runtime previously completed the full YouTube transcript -> temporary public OpenAI-compatible mock -> streamed
+  browser response path. The temporary mock and tunnel were stopped immediately after verification.
+- The user's provider exposes `gpt-5.5` and `gpt-5.5-openai-compact` from its authenticated `/v1/models` endpoint.
+- A minimal direct `gpt-5.5` request to `/v1/chat/completions` returned HTTP 200, `text/event-stream`, multiple `data:`
+  chunks and `[DONE]`, confirming the API shape required by this application.
+- The production page summarized the real YouTube video `dQw4w9WgXcQ` with `gpt-5.5`. The visible result described the
+  transcript's repeated promises of loyalty and not giving up, so it was content-grounded rather than a canned success.
+- The browser API Key field was cleared after the request and remained empty after a page reload. The secret was not
+  written to the repository, Vercel environment variables, backups or this progress log.
+
+### Completion status
+
+- The personal BibiGPT web deployment is usable end to end for YouTube videos with accessible subtitles and the tested
+  OpenAI-compatible provider/model configuration.
+- A real Bilibili test remains optional because subtitle availability varies and some videos require a
+  `BILIBILI_SESSION_TOKEN`; this does not block the verified YouTube workflow.
+- Final local audit passed `npx prettier --check PROGRESS.md`, `git diff --check`, `npx tsc --noEmit`, `npm run build`
+  and a repository secret-pattern scan. GitHub `origin/main` matches commit `6095ccc`.
+- A later read-only `npx vercel inspect` attempt could not start because the local npx cache lacked
+  `@tootallnate/quickjs-emscripten`. No global npm packages were changed to work around it; this does not affect the
+  already verified production deployment.
