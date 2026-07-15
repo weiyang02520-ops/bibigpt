@@ -1,0 +1,57 @@
+name: Production smoke
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SITE_URL: https://bibigpt-six.vercel.app
+      VIDEO_ID: BV1ySLc6QEcB
+    steps:
+      - name: Check production course workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          curl --fail --show-error --silent --retry 3 --retry-all-errors \
+            --location "$SITE_URL/" --output page.html
+          grep --fixed-strings --quiet '课程视频笔记' page.html
+
+          curl --fail --show-error --silent --retry 3 --retry-all-errors \
+            --request POST \
+            --header 'Content-Type: application/json' \
+            --data "{\"service\":\"bilibili\",\"videoId\":\"$VIDEO_ID\",\"pageNumber\":1}" \
+            "$SITE_URL/api/course/source" --output source.json
+
+          jq --exit-status \
+            --arg video "$VIDEO_ID" \
+            '.service == "bilibili" and .videoId == $video and .mode == "local-asr" and .duration > 2500 and .audio.size > 1000000 and (.frames.images | length) > 0 and (.frames.timestamps | length) > 0' \
+            source.json >/dev/null
+
+          audio_url="$(jq --raw-output '.audio.url' source.json)"
+          audio_status="$(curl --show-error --silent --output audio.bin --write-out '%{http_code}' \
+            --header 'Range: bytes=0-1023' "$SITE_URL$audio_url")"
+          test "$audio_status" = '206'
+          test "$(wc --bytes < audio.bin)" = '1024'
+
+          frame_url="$(jq --raw-output '.frames.images[0]' source.json)"
+          curl --fail --show-error --silent --retry 3 --retry-all-errors \
+            "$SITE_URL$frame_url" --output frame.jpg
+          test "$(wc --bytes < frame.jpg)" -gt 10000
+
+          {
+            echo '## Production smoke passed'
+            echo
+            echo "- Video: \`$VIDEO_ID\`"
+            echo "- Mode: \`$(jq --raw-output '.mode' source.json)\`"
+            echo "- Duration: \`$(jq --raw-output '.duration' source.json)\` seconds"
+            echo "- Audio size: \`$(jq --raw-output '.audio.size' source.json)\` bytes"
+            echo "- Frame sheets: \`$(jq '.frames.images | length' source.json)\`"
+            echo "- Preview timestamps: \`$(jq '.frames.timestamps | length' source.json)\`"
+          } >> "$GITHUB_STEP_SUMMARY"
