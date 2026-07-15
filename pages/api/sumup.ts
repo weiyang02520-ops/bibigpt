@@ -1,9 +1,11 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
-import { buildSummarizeOpenAIPayload, SummarizeRequestError } from '~/lib/openai/buildSummarizeRequest'
+import { getApiRequestStatus } from '~/lib/apiRequestError'
+import { buildSummarizeOpenAIPayload } from '~/lib/openai/buildSummarizeRequest'
 import { fetchOpenAIResult } from '~/lib/openai/fetchOpenAIResult'
-import { selectApiKeyAndActivatedLicenseKey } from '~/lib/openai/selectApiKeyAndActivatedLicenseKey'
+import { selectOpenAICompatibleApiKey } from '~/lib/openai/selectOpenAICompatibleApiKey'
+import { validateOpenAIBaseUrl } from '~/lib/openai/validateOpenAIBaseUrl'
 import { SummarizeParams } from '~/lib/types'
-import { writeWebStreamToNodeResponse } from '~/lib/openai/writeWebStreamToNodeResponse'
+import { prepareTextStreamResponse, writeWebStreamToNodeResponse } from '~/lib/openai/writeWebStreamToNodeResponse'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -18,14 +20,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     const normalizedParams = summarizeParams as SummarizeParams
-    const { videoConfig } = normalizedParams
-    const { openAiPayload, userKey, baseUrl, videoId } = await buildSummarizeOpenAIPayload(normalizedParams)
-    const openaiApiKey = await selectApiKeyAndActivatedLicenseKey(userKey, videoId)
+    const { videoConfig, userConfig } = normalizedParams
+    const openaiApiKey = await selectOpenAICompatibleApiKey(userConfig.userKey)
+    const baseUrl = await validateOpenAIBaseUrl(userConfig.baseUrl)
+    const { openAiPayload } = await buildSummarizeOpenAIPayload(normalizedParams)
     const result = await fetchOpenAIResult(openAiPayload, openaiApiKey, videoConfig, baseUrl)
 
     if (openAiPayload.stream) {
-      res.setHeader('Content-Type', 'text/plain; charset=utf-8')
-      res.setHeader('Cache-Control', 'no-cache')
+      prepareTextStreamResponse(res)
       if (result instanceof ReadableStream) {
         await writeWebStreamToNodeResponse(result, res)
         return
@@ -36,11 +38,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     res.status(200).json(result)
   } catch (error: any) {
-    if (error instanceof SummarizeRequestError) {
-      return res.status(error.statusCode).json({ errorMessage: error.message })
-    }
+    const statusCode = getApiRequestStatus(error)
     console.error(error?.message)
-    return res.status(500).json({
+    return res.status(statusCode).json({
       errorMessage: error?.message || 'Internal Server Error',
     })
   }

@@ -8,7 +8,6 @@ export async function fetchSubtitle(
 ): Promise<{
   title: string
   subtitlesArray?: null | Array<CommonSubtitleItem>
-  descriptionText?: string
 }> {
   const { service, videoId, pageNumber } = videoConfig
   console.log('video: ', videoConfig)

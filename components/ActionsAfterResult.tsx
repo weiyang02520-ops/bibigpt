@@ -1,3 +1,4 @@
+import { Copy, ExternalLink, NotebookPen } from 'lucide-react'
 import Link from 'next/link'
 import React from 'react'
 import { SaveNoteButton } from '~/components/SaveNoteButton'
@@ -21,36 +22,31 @@ export function ActionsAfterResult({
   const hasNoteSetting = flomoWebhook || larkWebhook
 
   return (
-    <div className="mx-auto mt-7 flex max-w-3xl flex-row-reverse gap-x-4">
-      <a
-        className="flex w-32 cursor-pointer items-center justify-center rounded-lg bg-pink-400 px-2 py-1 text-center font-medium text-white hover:bg-pink-400/80"
-        href="https://space.bilibili.com/37648256"
-        target="_blank"
-        rel="noopener noreferrer"
-      >
-        （关注我 😛）
-      </a>
+    <div className="mx-auto mt-7 flex max-w-3xl flex-wrap justify-end gap-2">
       <a
         href={curVideo}
-        className="flex w-24 cursor-pointer items-center justify-center rounded-lg bg-sky-400 px-2 py-1 text-center font-medium text-white hover:bg-sky-400/80"
+        className="inline-flex min-h-10 items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
         target="_blank"
         rel="noreferrer"
       >
+        <ExternalLink className="h-4 w-4" aria-hidden="true" />
         回到视频
       </a>
       <button
-        className="w-24 cursor-pointer rounded-lg bg-sky-400 px-2 py-1 text-center font-medium text-white hover:bg-sky-400/80"
+        type="button"
+        className="inline-flex min-h-10 items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
         onClick={onCopy}
       >
-        一键复制
+        <Copy className="h-4 w-4" aria-hidden="true" />
+        复制总结
       </button>
       {!hasNoteSetting ? (
         <Link
-          className="flex w-44 cursor-pointer items-center justify-center rounded-lg bg-green-400 px-2 py-1 text-center font-medium text-white hover:bg-green-400/80"
+          className="inline-flex min-h-10 items-center gap-2 rounded-md bg-slate-900 px-3 py-2 text-sm font-semibold text-white transition hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
           href="/user/integration"
-          target="_blank"
         >
-          📒 一键保存到笔记
+          <NotebookPen className="h-4 w-4" aria-hidden="true" />
+          配置笔记同步
         </Link>
       ) : (
         <>

@@ -1,35 +1,16 @@
-import { useAnalytics } from '~/components/context/analytics'
-import SquigglyLines from '../components/SquigglyLines'
-import { CHECKOUT_URL, RATE_LIMIT_COUNT } from '~/utils/constants'
+import Link from 'next/link'
 
-export default () => {
-  const { analytics } = useAnalytics()
-
+export default function ShopPage() {
   return (
-    <div>
-      <h2 className="mt-10 max-w-5xl pb-10 text-center text-4xl font-bold sm:text-7xl">
-        次数用完啦！每天都能用 {RATE_LIMIT_COUNT} 次，请点击
-        <span className="relative whitespace-nowrap text-[#3290EE]">
-          <SquigglyLines />
-          <a
-            className="relative text-pink-400 hover:underline"
-            href={CHECKOUT_URL}
-            onClick={() => analytics.track('ShopLink Clicked')}
-          >
-            点击购买
-          </a>
-        </span>
-        次数哦，💰
-        <div className="mt-8">
-          或者
-          <a href="/wechat.jpg" className="text-green-400 hover:underline" target="_blank" rel="noopener noreferrer">
-            「加我微信」
-          </a>
-        </div>
-      </h2>
-      <div className="min-h-screen min-w-fit border-2 border-purple-700">
-        <iframe src={CHECKOUT_URL} width="100%" height="1024px"></iframe>
-      </div>
-    </div>
+    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col items-center justify-center px-4 py-16 text-center">
+      <h1 className="text-3xl font-semibold text-slate-900 dark:text-slate-100">个人 BYOK 配置</h1>
+      <p className="mt-4 leading-7 text-slate-600 dark:text-slate-400">API Key、Base URL 和模型 ID 均在首页配置。</p>
+      <Link
+        href="/"
+        className="mt-8 inline-flex min-h-10 items-center rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+      >
+        返回首页
+      </Link>
+    </main>
   )
 }

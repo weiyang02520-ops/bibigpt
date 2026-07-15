@@ -15,25 +15,12 @@ const nextConfig = {
       },
       {
         protocol: 'https',
-        hostname: 'b.jimmylv.cn',
-      },
-      {
-        protocol: 'https',
-        hostname: 'bibigpt.co',
-      },
-      {
-        protocol: 'https',
         hostname: 'avatars.dicebear.com',
       },
     ],
   },
   async rewrites() {
-    const rewrites = [
-      {
-        source: '/blocked',
-        destination: '/shop',
-      },
-    ]
+    const rewrites = []
 
     if (process.env.INTERNAL_API_HOSTNAME) {
       rewrites.unshift({

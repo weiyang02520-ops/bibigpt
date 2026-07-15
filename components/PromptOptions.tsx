@@ -24,31 +24,41 @@ export function PromptOptions({
     <div className="mt-6 grid grid-cols-2 items-center gap-x-10 gap-y-2 md:mt-10 md:grid-cols-3 md:gap-y-6">
       <div className="col-span-2 md:col-span-3">
         <label htmlFor="model" className="mb-2 block text-sm font-medium text-gray-900 dark:text-white">
-          模型（OpenRouter 最新）
+          模型 ID
         </label>
-        <select
+        <input
           id="model"
-          className="block w-full rounded-md border border-gray-300 bg-gray-50 text-sm text-gray-900 focus:border-sky-500 focus:ring-sky-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400 dark:focus:border-sky-500 dark:focus:ring-sky-500"
+          type="text"
+          list="openrouter-model-suggestions"
+          autoComplete="off"
+          spellCheck={false}
+          aria-describedby="model-description"
+          placeholder="例如：gpt-4.1-mini 或 openai/gpt-4.1-mini"
+          className="block w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-sky-500 focus:ring-sky-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400 dark:focus:border-sky-500 dark:focus:ring-sky-500"
           {...register('model')}
-        >
-          {modelLoading ? <option value="">加载中...</option> : null}
-          {!modelLoading && modelOptions.length === 0 ? <option value="">暂无可用模型</option> : null}
+        />
+        <datalist id="openrouter-model-suggestions">
           {modelOptions.map((model) => (
-            <option key={model.id} value={model.id}>
-              {model.name}
-            </option>
+            <option key={model.id} value={model.id} label={model.name} />
           ))}
-        </select>
+        </datalist>
+        <p id="model-description" className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+          {modelLoading
+            ? '正在加载 OpenRouter 模型建议，也可以直接输入模型 ID。'
+            : modelOptions.length > 0
+            ? '可输入任意 OpenAI-compatible 模型 ID，OpenRouter 建议仅供选择。'
+            : '请输入模型服务支持的 OpenAI-compatible 模型 ID。'}
+        </p>
       </div>
       <label className="relative inline-flex cursor-pointer items-center">
         <input type="checkbox" className="peer sr-only" {...register('showTimestamp')} />
-        <div className="peer h-6 w-11 rounded-full bg-gray-200 after:absolute after:top-[2px] after:left-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-sky-400 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-sky-300 dark:border-gray-600 dark:bg-gray-700 dark:peer-focus:ring-sky-800"></div>
+        <div className="peer h-6 w-11 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-sky-400 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-sky-300 dark:border-gray-600 dark:bg-gray-700 dark:peer-focus:ring-sky-800"></div>
         <span className="ml-3 text-sm font-medium text-gray-900 dark:text-gray-300">是否显示时间戳</span>
       </label>
       <label className="relative inline-flex cursor-pointer items-center">
         <input type="checkbox" className="peer sr-only" {...register('showEmoji')} />
-        <div className="peer h-6 w-11 rounded-full bg-gray-200 after:absolute after:top-[2px] after:left-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-sky-400 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-sky-300 dark:border-gray-600 dark:bg-gray-700 dark:peer-focus:ring-sky-800"></div>
-        <span className="ml-3 text-sm font-medium text-gray-900 dark:text-gray-300">是否显示Emoji</span>
+        <div className="peer h-6 w-11 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-sky-400 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-sky-300 dark:border-gray-600 dark:bg-gray-700 dark:peer-focus:ring-sky-800"></div>
+        <span className="ml-3 text-sm font-medium text-gray-900 dark:text-gray-300">是否显示 Emoji</span>
       </label>
       <div>
         <label htmlFor="outputLanguage" className="mb-2 block text-sm font-medium text-gray-900 dark:text-white">

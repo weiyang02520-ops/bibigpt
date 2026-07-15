@@ -1,91 +1,91 @@
-> This repo is only for v1 and supports Bilibil and YouTube!
+# BibiGPT Personal BYOK
 
-# 🤖 BibiGPT: one-Click AI Summary for Audio/Video & Chat with Learning Content [https://bibigpt.co](https://bibigpt.co)
+一个部署在 Vercel 上的个人字幕视频总结工具。当前支持带可访问字幕的哔哩哔哩和 YouTube 视频，并允许在网页中填写自己的 OpenAI-compatible API 配置。
 
-🎉 Effortlessly summarize YouTube and Bilibili videos with our AI-driven Video Summarizer. It also works for Podcasts, Twitter, Meetings, Lectures, Tiktok videos, and more. Discover a more brilliant way to learn with ChatGPT, your best AI-powered study companion! (formerly BiliGPT) "stream-saving artifact & class representative".
+- 在线地址：<https://bibigpt-six.vercel.app>
+- GitHub：<https://github.com/weiyang02520-ops/bibigpt>
+- 上游项目：<https://github.com/JimmyLv/BibiGPT>
 
-Alternate address: https://b.jimmylv.cn
-Browser extension: https://bibigpt.co/extension
+## 当前能力
 
----
+- 使用网页中填写的 API Key、Base URL 和任意兼容模型 ID。
+- OpenRouter OAuth 仅作为可选配置方式。
+- 获取平台已有字幕，不下载视频文件。
+- 没有字幕时停止请求，不使用视频简介冒充字幕。
+- 将模型结果以纯文本流逐块显示。
+- API Key 保存在当前浏览器的 localStorage，不写入项目或结果缓存。
+- 个人 BYOK 请求没有购买、License 或每日次数限制。
+- Supabase、Upstash、Segment、Sentry 和服务端模型 Key 均为可选配置。
 
-## 🤖 BibiGPT · AI 音视频内容一键总结 & 对话 [https://bibigpt.co](https://bibigpt.co)
+## 使用
 
-🎉 ChatGPT AI 音视频一键总结，轻松学习哔哩哔哩丨 YouTube 丨本地视频丨本地音频丨播客丨小红书丨抖音丨会议丨讲座丨网页等任意内容。BibiGPT 助力于成为最好的 AI 学习助理，支持免费试用！(原 BiliGPT 省流神器 & AI 课代表)（支持 iOS 快捷指令 & 微信服务号）。
+1. 打开在线地址。
+2. 填写 API Key 和 API Base URL。
+3. 填写模型服务支持的模型 ID。
+4. 粘贴哔哩哔哩或 YouTube 视频链接并点击“一键总结”。
 
-备用地址：https://b.jimmylv.cn
-浏览器插件: https://bibigpt.co/extension
+生产环境中的自定义 Base URL 必须是公网 HTTPS 地址。`localhost`、局域网、链路本地和其他非公网地址会被拒绝。
 
----
+## 本地运行
 
-🎬 This project summarizes YouTube/Bilibili/Twitter/TikTok/Podcast/Lecture/Meeting/... videos or audios for you using AI.
-
-🤯 Inspired by [Nutlope/news-summarizer](https://github.com/Nutlope/news-summarizer) & [zhengbangbo/chat-simplifier](https://github.com/zhengbangbo/chat-simplifier/) & [lxfater/BilibiliSummary](https://github.com/lxfater/BilibiliSummary)
-
-[![BibiGPT音视频总结神器](./public/BibiGPT.gif)](https://twitter.com/Jimmy_JingLv/status/1630137750572728320?s=20)
-
-🚀 First Launch: [【BibiGPT】AI 自动总结 B 站视频内容，GPT-3 智能提取并总结字幕](https://www.bilibili.com/video/BV1fX4y1Q7Ux/?vd_source=dd5a650b0ad84edd0d54bb18196ecb86)
-
-## How it works
-
-This project uses the [AI SDK OpenAI-compatible provider](https://ai-sdk.dev/providers/openai-compatible-providers) with [Vercel Edge functions](https://vercel.com/features/edge-functions) for streaming, plus [Upstash](https://console.upstash.com/) for Redis cache and rate limiting. It fetches the content on a Bilibili video, sends it in a prompt to an OpenAI-compatible API, then streams the response back to the application.
-
-## Saving costs
-
-Projects like this can get expensive so in order to save costs if you want to make your own version and share it publicly, I recommend three things:
-
-- [x] 1. Implement rate limiting so people can't abuse your site
-- [x] 2. Implement caching to avoid expensive AI re-generations
-- [x] 3. Use `text-curie-001` instead of `text-dacinci-003` in the `summarize` edge function
-
-## Running Locally
-
-After cloning the repo, go to [OpenAI](https://beta.openai.com/account/api-keys) to make an account and put your API key in a file called `.env`.
-
-Then, run the application in the command line and it will be available at `http://localhost:3000`.
-
-[specific running procedure is described in this document - Chinese version](./deploy-ch.md)
-
-```bash
+```powershell
+npm ci --ignore-scripts
+Copy-Item .example.env .env.local
 npm run dev
 ```
 
-## Deployment
+应用默认运行在 <http://localhost:3000>。
 
-Deploy the example using [Vercel](https://vercel.com?utm_source=github&utm_medium=readme&utm_campaign=vercel-examples)
+如需运行不消耗真实 Token 的本地端到端验收：
 
-Setup the env variables, by following the `./example.env` file.
+```powershell
+# 终端 1
+npm run mock:openai
 
-### Personal BYOK deployment
-
-For a private or personal deployment, Supabase, Upstash, and a server-side OpenAI key are optional. Deploy the
-repository to Vercel, open the site, and enter an OpenAI-compatible API key and base URL in the web UI. The key is
-stored in that browser's local storage and sent only to this deployment's API route.
-
-Configure Supabase only if account login is needed. Configure Upstash only if shared caching and rate limiting are
-needed. A public deployment should enable rate limiting before it is shared with other users.
-
-## Support Docker
-
-https://github.com/JimmyLv/BibiGPT/pull/133
-
-```shell
-# make sure setup .env file firstly
-docker compose up -d
+# 终端 2
+$env:ALLOW_PRIVATE_OPENAI_BASE_URL='true'
+npm run dev
 ```
 
-## Support -> Contact Me
+测试页配置：
 
-![](./public/wechat.jpg)
+- API Key：任意非空测试值，例如 `mock-key`
+- Base URL：`http://127.0.0.1:4010/v1`
+- 模型 ID：`mock-bibigpt`
+- 视频：`https://www.youtube.com/watch?v=dQw4w9WgXcQ`
 
-## Star History
+Mock 只会在请求中发现该测试视频的真实字幕片段后返回成功结果。
 
-[![Star History Chart](https://api.star-history.com/svg?repos=JimmyLv/BibiGPT&type=Date)](https://star-history.com/#JimmyLv/BibiGPT&Date)
+## 部署
 
-## Contributors
+Vercel 部署步骤见 [deploy-ch.md](./deploy-ch.md)。个人 BYOK 模式不要求配置服务端 API Key、Supabase 或 Upstash。
 
-This project exists thanks to all the people who contribute.
+## 可选环境变量
 
- <a href="https://github.com/JimmyLv/BibiGPT/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=JimmyLv/BibiGPT" />
- </a>
+以 [.example.env](./.example.env) 为准，常用项包括：
+
+- `BILIBILI_SESSION_TOKEN`：部分 B 站字幕需要登录态才能访问。
+- `OPENAI_COMPATIBLE_API_KEY`：可选服务端 Key；个人部署通常留空。
+- `OPENAI_COMPATIBLE_BASE_URL` / `OPENAI_COMPATIBLE_MODEL`：服务端默认模型配置。
+- `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`：可选结果缓存。
+- `NEXT_PUBLIC_SITE_URL`：站点公开地址，用于页面元数据。
+
+不要提交 `.env*`、API Key、B 站 Session Token 或其他密钥。
+
+## 已知边界
+
+- 只总结平台已有字幕，不包含 ASR、本地文件上传或视频截图。
+- B 站字幕可能要求 `BILIBILI_SESSION_TOKEN`。
+- YouTube 字幕依赖非官方接口，平台策略变化时可能失效。
+- BibiGPT v1 会压缩较长字幕，不适合直接处理完整的二十小时课程。
+- Obsidian 导出、课程分段总结和重点截图属于后续独立流程，不在当前网页版本中。
+
+## 验证
+
+```powershell
+npx prettier --check .
+npx tsc --noEmit
+npm run build
+```
+
+本分支基于 BibiGPT v1 修改，继续遵循仓库中的 GPL-3.0 许可证。

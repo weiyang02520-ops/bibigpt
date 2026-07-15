@@ -1,26 +1,50 @@
-## 环境要求
+# Vercel 部署说明
 
-nodejs 18.0 +
+## 1. 导入仓库
 
-## 操作指引
+1. 在 GitHub Fork 或使用当前仓库 `weiyang02520-ops/bibigpt`。
+2. 登录 Vercel，选择 **Add New Project**。
+3. 导入 GitHub 仓库，Framework Preset 选择 Next.js。
+4. 保持默认构建命令 `npm run build`，点击 Deploy。
 
-1. clone 本仓库
-2. 运行 `npm install`
-3. 复制 [.example.env](.example.env) 到同级目录，并将其改名为 `.env`
-4. 填写 `.env` 文件中所有的必填项 （也就是除了 Optional 下的所有内容）
-   1. 在 https://platform.openai.com/account/api-keys 生成 key，复制它并赋值到 OPENAI_API_KEY
-   2. 在 https://www.bilibili.com 中使用 F12 打开开发者控制台，导航至 application -> Cookies -> ...www.bilibili.com -> **SESSDATA**，复制该值并赋值到 `BILIBILI_SESSION_TOKEN`
-      ![img_1.png](public/deploy-ch/img_1.png)
-   3. 在 https://savesubs.com 中使用 F12 打开开发者控制台，导航至 application -> Cookies -> ...savesubs.com -> **cf_clearance**，复制该值并赋值到 `SAVESUBS_X_AUTH_TOKEN`
-   4. 登录 https://upstash.com，在 `Create a Redis Database` 页下点击 `Create database`
-      ![img_3.jpg](public/deploy-ch/img_3.jpg)
-      根据情况输入基本信息:
-      ![img_4.png](public/deploy-ch/img_4.png)
-      进入该数据库的控制台，下滑到 `REST API` 栏，点击复制`UPSTASH_REDIS_REST_URL`和 `UPSTASH_REDIS_REST_TOKEN`，赋值到同名变量
-      ![img_5.png](public%2Fdeploy-ch%2Fimg_5.png)
-   5. 登录 https://supabase.com/ ，新建一个 project
-      ![img_6.png](public%2Fdeploy-ch%2Fimg_6.png)
-      确认后，点击右侧导航的齿轮进入设置，复制 `URL` 到 `SUPABASE_HOSTNAME`，复制 `key` 到 `NEXT_PUBLIC_SUPABASE_ANON_KEY`。
-      ![img_7.png](public%2Fdeploy-ch%2Fimg_7.png)
-5. 使用 `#` 注释掉 Optional 下的所有项 （可选）
-6. 运行 `npm run dev`
+个人 BYOK 模式在没有 Supabase、Upstash 和服务端模型 Key 时也能构建和运行。
+
+## 2. 可选环境变量
+
+在 Vercel 项目的 **Settings -> Environment Variables** 中按需添加：
+
+```text
+NEXT_PUBLIC_SITE_URL=https://你的正式域名
+BILIBILI_SESSION_TOKEN=
+OPENAI_COMPATIBLE_API_KEY=
+OPENAI_COMPATIBLE_BASE_URL=https://api.openai.com/v1
+OPENAI_COMPATIBLE_MODEL=gpt-4o-mini
+UPSTASH_REDIS_REST_URL=
+UPSTASH_REDIS_REST_TOKEN=
+```
+
+说明：
+
+- 网页中填写自己的 Key 时，不需要 `OPENAI_COMPATIBLE_API_KEY`。
+- 只有部分 B 站字幕需要 `BILIBILI_SESSION_TOKEN`；不要把 Token 提交到 GitHub。
+- Upstash 只用于可选结果缓存，不负责个人 BYOK 次数限制。
+- YouTube 字幕不再使用 SaveSubs，无需 `SAVESUBS_X_AUTH_TOKEN`。
+
+修改环境变量后应重新部署。
+
+## 3. 验收
+
+部署完成后至少检查：
+
+1. 首页显示 API Key、Base URL、模型 ID 和视频链接输入框。
+2. 页面没有“免费次数”“购买次数”或 License Key 文案。
+3. 未填写 API Key 时，接口立即返回清晰的 400 错误。
+4. 无字幕视频返回 422，且不调用模型。
+5. 有字幕视频能逐块显示模型总结。
+6. `/privacy` 能正常打开。
+
+## 4. 安全边界
+
+- 生产环境只允许公网 HTTPS 模型 Base URL。
+- 浏览器 Key 会经过当前 Vercel API 路由转发，因此只在自己信任的部署中使用。
+- 如果配置服务端 Key 并公开分享站点，应额外增加独立的访问控制或限流；当前个人版不包含商业计次逻辑。

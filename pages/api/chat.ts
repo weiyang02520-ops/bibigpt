@@ -1,9 +1,11 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
-import { buildSummarizeOpenAIPayload, SummarizeRequestError } from '~/lib/openai/buildSummarizeRequest'
+import { getApiRequestStatus } from '~/lib/apiRequestError'
+import { buildSummarizeOpenAIPayload } from '~/lib/openai/buildSummarizeRequest'
 import { fetchOpenAIResult } from '~/lib/openai/fetchOpenAIResult'
-import { selectApiKeyAndActivatedLicenseKey } from '~/lib/openai/selectApiKeyAndActivatedLicenseKey'
+import { selectOpenAICompatibleApiKey } from '~/lib/openai/selectOpenAICompatibleApiKey'
+import { validateOpenAIBaseUrl } from '~/lib/openai/validateOpenAIBaseUrl'
 import { SummarizeParams } from '~/lib/types'
-import { writeWebStreamToNodeResponse } from '~/lib/openai/writeWebStreamToNodeResponse'
+import { prepareTextStreamResponse, writeWebStreamToNodeResponse } from '~/lib/openai/writeWebStreamToNodeResponse'
 
 type ChatBody = Partial<SummarizeParams> & {
   messages?: Array<{ role: string; content?: string }>
@@ -25,12 +27,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const { openAiPayload, userKey, baseUrl, videoId } = await buildSummarizeOpenAIPayload({ videoConfig, userConfig })
-    const openaiApiKey = await selectApiKeyAndActivatedLicenseKey(userKey, videoId)
+    const openaiApiKey = await selectOpenAICompatibleApiKey(userConfig.userKey)
+    const baseUrl = await validateOpenAIBaseUrl(userConfig.baseUrl)
+    const { openAiPayload } = await buildSummarizeOpenAIPayload({ videoConfig, userConfig })
     const streamResult = await fetchOpenAIResult({ ...openAiPayload, stream: true }, openaiApiKey, videoConfig, baseUrl)
 
-    res.setHeader('Content-Type', 'text/plain; charset=utf-8')
-    res.setHeader('Cache-Control', 'no-cache')
+    prepareTextStreamResponse(res)
 
     if (streamResult instanceof ReadableStream) {
       await writeWebStreamToNodeResponse(streamResult, res)
@@ -39,7 +41,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     res.status(200).send(streamResult)
   } catch (error: any) {
-    const statusCode = error instanceof SummarizeRequestError ? error.statusCode : 500
+    const statusCode = getApiRequestStatus(error)
     const message = error?.message || 'Internal Server Error'
     console.error(message)
     res.status(statusCode).send(toHttpErrorMessage(statusCode, message))

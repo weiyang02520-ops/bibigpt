@@ -5,9 +5,7 @@ import React, { useEffect, useState } from 'react'
 import { useAnalytics } from '~/components/context/analytics'
 import SlugPage from './[...slug]'
 
-const Home: NextPage<{
-  showSingIn: (show: boolean) => void
-}> = ({ showSingIn }) => {
+const Home: NextPage = () => {
   const [analytics, setAnalytics] = useState<AnalyticsType | undefined>(undefined)
 
   const { analytics: analyticsBrowser, enabled: analyticsEnabled } = useAnalytics()
@@ -30,6 +28,6 @@ const Home: NextPage<{
     }
     handleAnalyticsLoading(analyticsBrowser).catch(console.error)
   }, [analyticsBrowser, analyticsEnabled])
-  return <SlugPage showSingIn={showSingIn} />
+  return <SlugPage />
 }
 export default Home

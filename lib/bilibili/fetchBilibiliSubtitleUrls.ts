@@ -1,59 +1,179 @@
-import { find, sample } from '~/utils/fp'
+import { sample } from '~/utils/fp'
 
-type BilibiliSubtitles = {
+type BilibiliSubtitle = {
   lan: string
   subtitle_url: string
 }
 
 interface BilibiliVideoInfo {
   title: string
-  desc?: string
-  dynamic?: string
-  subtitle?: {
-    list: BilibiliSubtitles[]
+  subtitle: {
+    list: BilibiliSubtitle[]
   }
 }
+
+type JsonObject = Record<string, unknown>
+
+const isJsonObject = (value: unknown): value is JsonObject =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+
+const toPositiveInteger = (value: unknown): number | null => {
+  const numberValue =
+    typeof value === 'number' ? value : typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : Number.NaN
+
+  return Number.isSafeInteger(numberValue) && numberValue > 0 ? numberValue : null
+}
+
+const fetchBilibiliJson = async (url: string, config: RequestInit, requestName: string): Promise<JsonObject> => {
+  let response: Response
+  try {
+    response = await fetch(url, { ...config, signal: AbortSignal.timeout(10000) })
+  } catch {
+    throw new Error(`无法连接 Bilibili，${requestName}请求失败，请稍后重试`)
+  }
+
+  if (!response.ok) {
+    throw new Error(`Bilibili ${requestName}请求失败（HTTP ${response.status}）`)
+  }
+
+  let json: unknown
+  try {
+    json = await response.json()
+  } catch {
+    throw new Error(`Bilibili ${requestName}响应不是有效的 JSON`)
+  }
+
+  if (!isJsonObject(json)) {
+    throw new Error(`Bilibili ${requestName}响应格式异常`)
+  }
+
+  return json
+}
+
+const getBilibiliResponseData = (json: JsonObject, requestName: string): JsonObject => {
+  if (typeof json.code !== 'number') {
+    throw new Error(`Bilibili ${requestName}响应缺少有效的业务码`)
+  }
+
+  if (json.code !== 0) {
+    throw new Error(`Bilibili ${requestName}请求失败（业务码 ${json.code}）`)
+  }
+
+  if (!isJsonObject(json.data)) {
+    throw new Error(`Bilibili ${requestName}响应缺少有效数据`)
+  }
+
+  return json.data
+}
+
+const parsePageNumber = (pageNumber?: null | string): number => {
+  const parsedPageNumber = Number(pageNumber || 1)
+  if (!Number.isSafeInteger(parsedPageNumber) || parsedPageNumber < 1) {
+    throw new Error('Bilibili 分P页码无效')
+  }
+
+  return parsedPageNumber
+}
+
+const parseSubtitleList = (value: unknown): BilibiliSubtitle[] => {
+  if (!Array.isArray(value)) {
+    throw new Error('Bilibili 播放器响应中的字幕列表格式异常')
+  }
+
+  return value.map((item) => {
+    if (
+      !isJsonObject(item) ||
+      typeof item.lan !== 'string' ||
+      typeof item.subtitle_url !== 'string' ||
+      !item.subtitle_url.trim()
+    ) {
+      throw new Error('Bilibili 播放器返回了无效的字幕条目')
+    }
+
+    return {
+      lan: item.lan,
+      subtitle_url: item.subtitle_url,
+    }
+  })
+}
+
 export const fetchBilibiliSubtitleUrls = async (
   videoId: string,
   pageNumber?: null | string,
 ): Promise<BilibiliVideoInfo> => {
-  const sessdata = sample(process.env.BILIBILI_SESSION_TOKEN?.split(','))
-  const headers = {
+  const sessionTokens = (process.env.BILIBILI_SESSION_TOKEN || '')
+    .split(',')
+    .map((token) => token.trim())
+    .filter(Boolean)
+  const sessdata = sample(sessionTokens) as string | undefined
+  const headers: Record<string, string> = {
     Accept: 'application/json',
     'Content-Type': 'application/json',
     'User-Agent':
       'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36',
-    Host: 'api.bilibili.com',
-    Cookie: `SESSDATA=${sessdata}`,
   }
+  if (sessdata) {
+    headers.Cookie = `SESSDATA=${sessdata}`
+  }
+
   const commonConfig: RequestInit = {
     method: 'GET',
-    cache: 'no-cache', // *default, no-cache, reload, force-cache, only-if-cached
+    cache: 'no-cache',
     headers,
-    referrerPolicy: 'no-referrer', // no-referrer, *no-referrer-when-downgrade, origin, origin-when-cross-origin, same-origin, strict-origin, strict-origin-when-cross-origin, unsafe-url
+    referrerPolicy: 'no-referrer',
   }
 
-  const params = videoId.startsWith('av') ? `?aid=${videoId.slice(2)}` : `?bvid=${videoId}`
-  const requestUrl = `https://api.bilibili.com/x/web-interface/view${params}`
-  console.log(`fetch`, requestUrl)
-  const response = await fetch(requestUrl, commonConfig)
-  const json = await response.json()
-
-  // support multiple parts of video
-  if (pageNumber || json?.data?.pages?.length > 0) {
-    const { aid, pages } = json?.data || {}
-    const { cid } = find(pages, { page: Number(pageNumber || 1) }) || {}
-
-    // https://api.bilibili.com/x/player/v2?aid=865462240&cid=1035524244
-    const pageUrl = `https://api.bilibili.com/x/player/v2?aid=${aid}&cid=${cid}`
-    const res = await fetch(pageUrl, commonConfig)
-    const j = await res.json()
-
-    // r.data.subtitle.subtitles
-    return { ...json.data, subtitle: { list: j.data.subtitle.subtitles } }
+  const normalizedVideoId = videoId.trim()
+  if (!normalizedVideoId) {
+    throw new Error('Bilibili 视频 ID 不能为空')
   }
 
-  // return json.data.View;
-  // { code: -404, message: '啥都木有', ttl: 1 }
-  return json.data
+  const params = normalizedVideoId.startsWith('av')
+    ? `aid=${encodeURIComponent(normalizedVideoId.slice(2))}`
+    : `bvid=${encodeURIComponent(normalizedVideoId)}`
+  const viewJson = await fetchBilibiliJson(
+    `https://api.bilibili.com/x/web-interface/view?${params}`,
+    commonConfig,
+    '视频信息',
+  )
+  const viewData = getBilibiliResponseData(viewJson, '视频信息')
+
+  if (typeof viewData.title !== 'string' || !viewData.title.trim()) {
+    throw new Error('Bilibili 视频信息响应缺少有效标题')
+  }
+
+  const aid = toPositiveInteger(viewData.aid)
+  if (aid === null) {
+    throw new Error('Bilibili 视频信息响应缺少有效的 aid')
+  }
+
+  if (!Array.isArray(viewData.pages) || viewData.pages.length < 1) {
+    throw new Error('Bilibili 视频信息响应缺少有效的分P列表')
+  }
+
+  const requestedPageNumber = parsePageNumber(pageNumber)
+  const selectedPage = viewData.pages.find(
+    (page) => isJsonObject(page) && toPositiveInteger(page.page) === requestedPageNumber,
+  )
+  if (!isJsonObject(selectedPage)) {
+    throw new Error(`Bilibili 视频不存在第 ${requestedPageNumber} 分P`)
+  }
+
+  const cid = toPositiveInteger(selectedPage.cid)
+  if (cid === null) {
+    throw new Error(`Bilibili 第 ${requestedPageNumber} 分P缺少有效的 cid`)
+  }
+
+  const playerJson = await fetchBilibiliJson(
+    `https://api.bilibili.com/x/player/v2?aid=${aid}&cid=${cid}`,
+    commonConfig,
+    '播放器信息',
+  )
+  const playerData = getBilibiliResponseData(playerJson, '播放器信息')
+  const subtitleList = isJsonObject(playerData.subtitle) ? parseSubtitleList(playerData.subtitle.subtitles ?? []) : []
+  return {
+    ...viewData,
+    title: viewData.title,
+    subtitle: { list: subtitleList },
+  }
 }

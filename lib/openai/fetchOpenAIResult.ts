@@ -3,7 +3,6 @@ import { ModelMessage, generateText, streamText } from 'ai'
 import { Redis } from '@upstash/redis'
 import { trimOpenAiResult } from '~/lib/openai/trimOpenAiResult'
 import { VideoConfig } from '~/lib/types'
-import { isDev } from '~/utils/env'
 import { getCacheId } from '~/utils/getCacheId'
 
 const cacheRedisUrl = process.env.UPSTASH_REDIS_REST_URL
@@ -33,24 +32,9 @@ export interface OpenAIStreamPayload {
   n?: number
 }
 
-function resolveProviderApiKey(apiKey?: string) {
-  return apiKey || process.env.OPENAI_COMPATIBLE_API_KEY || process.env.OPENAI_API_KEY || ''
-}
-
-function normalizeBaseUrl(baseUrl?: string) {
-  const value = baseUrl?.trim()
-  if (!value) {
-    return ''
-  }
-  if (!/^https?:\/\//.test(value)) {
-    throw new Error('baseUrl must start with http:// or https://')
-  }
-  return value.replace(/\/+$/, '')
-}
-
-function createProvider(apiKey: string, baseUrl?: string) {
+function createProvider(apiKey: string, baseUrl: string) {
   return createOpenAICompatible({
-    baseURL: normalizeBaseUrl(baseUrl) || process.env.OPENAI_COMPATIBLE_BASE_URL || 'https://api.openai.com/v1',
+    baseURL: baseUrl,
     name: process.env.OPENAI_COMPATIBLE_PROVIDER_NAME || 'openai-compatible',
     apiKey,
   })
@@ -98,25 +82,21 @@ export async function fetchOpenAIResult(
   payload: OpenAIStreamPayload,
   apiKey: string,
   videoConfig: VideoConfig,
-  baseUrl?: string,
+  baseUrl: string,
 ) {
-  const resolvedApiKey = resolveProviderApiKey(apiKey)
+  const resolvedApiKey = apiKey.trim()
   if (!resolvedApiKey) {
     throw new Error('Missing API key for OpenAI-compatible provider')
   }
   const model = createProvider(resolvedApiKey, baseUrl).chatModel(payload.model)
   const messages = toModelMessages(payload.messages)
 
-  isDev && console.log({ apiKey: resolvedApiKey })
-
-  const cacheId = getCacheId(videoConfig)
+  const cacheId = getCacheId(videoConfig, baseUrl)
 
   if (!payload.stream) {
     const betterResult = await generateTextFallback({ model, messages, payload })
 
     await cacheResult(cacheId, betterResult)
-    isDev && console.log('========betterResult========', betterResult)
-
     return betterResult
   }
 
@@ -152,16 +132,20 @@ export async function fetchOpenAIResult(
 
         controller.close()
         await cacheResult(cacheId, tempData)
-        isDev && console.log('========betterResult after streamed========', tempData)
       } catch (streamError) {
-        // Degrade gracefully: return full text instead of failing the whole request.
+        if (tempData.trim()) {
+          controller.enqueue(encoder.encode('\n\n> 模型响应在流式输出中断，请重试。'))
+          controller.close()
+          return
+        }
+
+        // No partial output reached the browser, so one non-stream fallback is safe.
         try {
           const fallbackText = await generateTextFallback({ model, messages, payload })
           tempData = fallbackText
           controller.enqueue(encoder.encode(fallbackText))
           controller.close()
           await cacheResult(cacheId, tempData)
-          isDev && console.warn('stream failed, used fallback generateText', streamError)
         } catch (fallbackError) {
           controller.error(fallbackError)
         }

@@ -4,9 +4,7 @@ import { ThemeSupa } from '@supabase/auth-ui-shared'
 import Image from 'next/image'
 import Link from 'next/link'
 import React, { Dispatch, SetStateAction, useCallback, useMemo, useState } from 'react'
-import { useAnalytics } from '~/components/context/analytics'
 import Modal from '~/components/shared/modal'
-import { BASE_DOMAIN, CHECKOUT_URL, LOGIN_LIMIT_COUNT } from '~/utils/constants'
 import { getRedirectURL } from '~/utils/getRedirectUrl'
 
 const SignInModal = ({
@@ -18,28 +16,16 @@ const SignInModal = ({
 }) => {
   const supabaseClient = useSupabaseClient()
   const redirectURL = getRedirectURL()
-  const { analytics } = useAnalytics()
 
   return (
     <Modal showModal={showSignInModal} setShowModal={setShowSignInModal}>
-      <div className="w-full overflow-hidden shadow-xl md:max-w-md md:rounded-2xl md:border md:border-gray-200">
+      <div className="w-full overflow-hidden shadow-xl md:max-w-md md:rounded-lg md:border md:border-gray-200">
         <div className="flex flex-col items-center justify-center space-y-3 border-b border-gray-200 bg-white px-4 py-6 pt-8 text-center md:px-16">
-          <a href={BASE_DOMAIN}>
-            <Image src="/tv-logo.png" alt="Logo" className="h-10 w-10 rounded-full" width={20} height={20} />
-          </a>
+          <Link href="/" aria-label="返回 BibiGPT 首页">
+            <Image src="/tv-logo.png" alt="BibiGPT" className="h-10 w-10 rounded-full" width={40} height={40} />
+          </Link>
           <h3 className="font-display text-2xl font-bold">登录 BibiGPT</h3>
-          <h4>
-            （每天都赠送 {LOGIN_LIMIT_COUNT} 次哦，
-            <a
-              className="relative text-pink-400 hover:underline"
-              href={CHECKOUT_URL}
-              onClick={() => analytics.track('ShopLink Clicked')}
-            >
-              点击购买
-            </a>
-            新的次数）
-          </h4>
-          <p className="text-sm text-pink-400">Input, Prompt, Output</p>
+          <p className="text-sm text-slate-500">登录到当前部署</p>
         </div>
 
         <div className="flex flex-col space-y-4 bg-gray-50 px-4 py-8 md:px-16">
@@ -57,13 +43,7 @@ const SignInModal = ({
               },
             }}
             onlyThirdPartyProviders
-            // magicLink
-            providers={[
-              'notion',
-              'github',
-              // "google", "facebook",
-              // "twitter",
-            ]}
+            providers={['notion', 'github']}
             appearance={{
               theme: ThemeSupa,
               variables: {
@@ -71,7 +51,6 @@ const SignInModal = ({
                   colors: {
                     brand: '#F17EB8',
                     brandAccent: '#f88dbf',
-                    // brandButtonText: "white",
                   },
                 },
               },

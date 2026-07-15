@@ -10,8 +10,6 @@ import { PromptOptions } from '~/components/PromptOptions'
 import { SubmitButton } from '~/components/SubmitButton'
 import { SummaryResult } from '~/components/SummaryResult'
 import { TypingSlogan } from '~/components/TypingSlogan'
-import { UsageAction } from '~/components/UsageAction'
-import { UsageDescription } from '~/components/UsageDescription'
 import { UserKeyInput } from '~/components/UserKeyInput'
 import { useOpenRouterModels } from '~/hooks/useOpenRouterModels'
 import { useToast } from '~/hooks/use-toast'
@@ -42,17 +40,13 @@ async function generatePkceChallenge(verifier: string) {
   return toBase64Url(new Uint8Array(hashBuffer))
 }
 
-export const Home: NextPage<{
-  showSingIn: (show: boolean) => void
-}> = ({ showSingIn }) => {
+export const Home: NextPage = () => {
   const router = useRouter()
   const urlState = router.query.slug
   const searchParams = useMemo(() => {
     const [, queryString = ''] = router.asPath.split('?')
     return new URLSearchParams(queryString)
   }, [router.asPath])
-  const licenseKey = searchParams.get('license_key')
-
   const {
     register,
     handleSubmit,
@@ -81,9 +75,11 @@ export const Home: NextPage<{
   const [currentVideoUrl, setCurrentVideoUrl] = useState<string>('')
   const [userKey, setUserKey] = useLocalStorage<string>('user-openai-apikey')
   const [userBaseUrl, setUserBaseUrl] = useLocalStorage<string>('user-openai-base-url')
+  const [storedModel, setStoredModel] = useLocalStorage<string>('user-openai-model', '')
   const [oauthLoading, setOauthLoading] = useState(false)
-  const { models: openRouterModels, latestModel, loading: modelLoading } = useOpenRouterModels()
-  const { loading, summary, resetSummary, summarize } = useSummarize(showSingIn)
+  const [modelInitialized, setModelInitialized] = useState(false)
+  const { models: openRouterModels, loading: modelLoading } = useOpenRouterModels()
+  const { loading, summary, resetSummary, summarize } = useSummarize()
   const { toast } = useToast()
   const { analytics } = useAnalytics()
 
@@ -91,27 +87,39 @@ export const Home: NextPage<{
     watch,
     setValue,
     storage: typeof window !== 'undefined' ? window.localStorage : undefined, // default window.sessionStorage
-    // exclude: ['baz']
+    exclude: ['model'],
   })
   const shouldShowTimestamp = getValues('showTimestamp')
+  const currentModel = watch('model')
 
   useEffect(() => {
-    licenseKey && setUserKey(licenseKey)
-  }, [licenseKey])
-
-  useEffect(() => {
-    if (!openRouterModels.length) {
+    if (modelInitialized) {
       return
     }
-    const currentModel = getValues('model')
-    if (!currentModel) {
-      setValue('model', openRouterModels[0].id)
+    if (storedModel?.trim()) {
+      setValue('model', storedModel)
     }
-  }, [openRouterModels, getValues, setValue])
+    setModelInitialized(true)
+  }, [modelInitialized, setValue, storedModel])
+
+  useEffect(() => {
+    if (modelInitialized) {
+      setStoredModel(currentModel || '')
+    }
+  }, [currentModel, modelInitialized, setStoredModel])
+
+  useEffect(() => {
+    const suggestedModel = openRouterModels[0]?.id
+    if (!modelInitialized || !suggestedModel) {
+      return
+    }
+    if (!getValues('model')?.trim()) {
+      setValue('model', suggestedModel)
+    }
+  }, [modelInitialized, openRouterModels, getValues, setValue])
 
   useEffect(() => {
     // https://www.youtube.com/watch?v=DHhOgWPKIKU
-    // todo: support redirect from www.youtube.jimmylv.cn/watch?v=DHhOgWPKIKU
     const validatedUrl = getVideoIdFromUrl(router.isReady, currentVideoUrl, urlState, searchParams)
 
     console.log('getVideoUrlFromUrl', validatedUrl)
@@ -128,13 +136,13 @@ export const Home: NextPage<{
       // https://www.bilibili.com/video/av352747000
       // todo: b23.tv url with title
       // todo: any article url
-      !(videoUrl.includes('bilibili.com/video') || videoUrl.includes('youtube.com'))
+      !(videoUrl.includes('bilibili.com/video') || videoUrl.includes('youtube.com') || videoUrl.includes('youtu.be/'))
     ) {
       toast({
         title: '暂不支持此视频链接',
-        description: '请输入哔哩哔哩或YouTub视频链接，已支持b23.tv短链接',
+        description: '请输入哔哩哔哩或 YouTube 视频链接；支持 b23.tv 短链接。',
       })
-      return
+      return false
     }
 
     // 来自输入框
@@ -145,13 +153,16 @@ export const Home: NextPage<{
     } else {
       setCurrentVideoUrl(videoUrl)
     }
+    return true
   }
   const generateSummary = async (url?: string) => {
     const formValues = getValues()
     console.log('=======formValues=========', formValues)
 
     resetSummary()
-    validateUrlFromAddressBar(url)
+    if (!validateUrlFromAddressBar(url)) {
+      return
+    }
 
     const videoUrl = url || currentVideoUrl
     const { id, service } = getVideoId(videoUrl)
@@ -179,15 +190,15 @@ export const Home: NextPage<{
       window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })
     }, 10)
   }
-  const onFormSubmit: SubmitHandler<VideoConfigSchema> = async (data) => {
+  const onFormSubmit: SubmitHandler<VideoConfigSchema> = async () => {
     // e.preventDefault();
     await generateSummary(currentVideoUrl)
     analytics.track('GenerateButton Clicked')
   }
-  const handleApiKeyChange = (e: any) => {
+  const handleApiKeyChange: React.ChangeEventHandler<HTMLInputElement> = (e) => {
     setUserKey(e.target.value)
   }
-  const handleBaseUrlChange = (e: any) => {
+  const handleBaseUrlChange: React.ChangeEventHandler<HTMLInputElement> = (e) => {
     setUserBaseUrl(e.target.value)
   }
 
@@ -237,10 +248,22 @@ export const Home: NextPage<{
     const regex = /((?:https?:\/\/|www\.)\S+)/g
     const matches = value.match(regex)
     if (matches && matches[0].includes('b23.tv')) {
-      toast({ title: '正在自动转换此视频链接...' })
-      const response = await fetch(`/api/b23tv?url=${matches[0]}`)
-      const json = await response.json()
-      setCurrentVideoUrl(json.url)
+      toast({ title: '正在解析 b23.tv 短链接...' })
+      try {
+        const response = await fetch(`/api/b23tv?url=${encodeURIComponent(matches[0])}`)
+        const json = await response.json()
+        if (!response.ok || typeof json.url !== 'string') {
+          throw new Error(json.errorMessage || '短链接解析失败')
+        }
+        setCurrentVideoUrl(json.url)
+      } catch (error: any) {
+        setCurrentVideoUrl(value)
+        toast({
+          variant: 'destructive',
+          title: 'b23.tv 短链接解析失败',
+          description: error?.message || '请粘贴完整的 Bilibili 视频链接。',
+        })
+      }
     } else {
       setCurrentVideoUrl(value)
     }
@@ -248,9 +271,7 @@ export const Home: NextPage<{
 
   return (
     <div className="mt-10 w-full px-4 sm:mt-40 lg:px-0">
-      <UsageDescription />
-      <TypingSlogan latestModelName={latestModel?.name} />
-      <UsageAction />
+      <TypingSlogan />
       <UserKeyInput
         value={userKey}
         onChange={handleApiKeyChange}
@@ -265,7 +286,7 @@ export const Home: NextPage<{
           value={currentVideoUrl}
           onChange={handleInputChange}
           className="mx-auto mt-10 w-full appearance-none rounded-lg rounded-md border bg-transparent py-2 pl-2 text-sm leading-6 text-slate-900 shadow-sm ring-1 ring-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          placeholder={'输入 bilibili.com/youtube.com 视频链接，按下「回车」'}
+          placeholder="输入哔哩哔哩或 YouTube 视频链接，按下回车"
         />
         <SubmitButton loading={loading} />
         <PromptOptions

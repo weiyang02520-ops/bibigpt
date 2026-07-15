@@ -1,15 +1,15 @@
 import Document, { Head, Html, Main, NextScript } from 'next/document'
-import { BASE_DOMAIN } from '~/utils/constants'
 
 class MyDocument extends Document {
   render() {
-    let description = 'B 站视频内容一键总结（支持 iOS 快捷指令）'
-    let ogimage = `${BASE_DOMAIN}/og-image.png`
-    let sitename = 'b.jimmylv.cn'
-    let title = '哔哩哔哩 · 视频内容一键总结'
+    const baseDomain = process.env.NEXT_PUBLIC_SITE_URL || 'https://bibigpt-six.vercel.app'
+    const description = '使用自己的 OpenAI-compatible API，总结带字幕的哔哩哔哩与 YouTube 视频。'
+    const ogimage = `${baseDomain}/og-image.png`
+    const sitename = 'BibiGPT 个人 BYOK'
+    const title = 'BibiGPT · 字幕视频总结'
 
     return (
-      <Html lang="en">
+      <Html lang="zh-CN">
         <Head>
           <link
             rel="icon"
