@@ -1,6 +1,6 @@
 # BibiGPT Personal BYOK
 
-一个部署在 Vercel 上的个人字幕视频总结工具。当前支持带可访问字幕的哔哩哔哩和 YouTube 视频，并允许在网页中填写自己的 OpenAI-compatible API 配置。
+一个部署在 Vercel 上的个人课程视频总结工具。当前支持哔哩哔哩和 YouTube，并允许在网页中填写自己的 OpenAI-compatible API 配置。
 
 - 在线地址：<https://bibigpt-six.vercel.app>
 - GitHub：<https://github.com/weiyang02520-ops/bibigpt>
@@ -10,9 +10,12 @@
 
 - 使用网页中填写的 API Key、Base URL 和任意兼容模型 ID。
 - OpenRouter OAuth 仅作为可选配置方式。
-- 获取平台已有字幕，不下载视频文件。
-- 没有字幕时停止请求，不使用视频简介冒充字幕。
-- 将模型结果以纯文本流逐块显示。
+- 优先获取平台已有字幕，不使用视频简介冒充字幕。
+- 没有可访问字幕时，使用浏览器本地 Whisper 转写音频。
+- Bilibili 和 YouTube 音频都通过同源 Range 代理按小块读取，不把整段视频常驻下载到浏览器内存。
+- 长课程会先切分转写文本，再逐段总结并合成完整课程笔记。
+- 支持关键画面预览和 Obsidian Markdown/ZIP 导出；Bilibili 可从平台预览 sprite 裁切画面。
+- 课程任务会保存在当前浏览器 IndexedDB，刷新后可继续。
 - API Key 保存在当前浏览器的 localStorage，不写入项目或结果缓存。
 - 个人 BYOK 请求没有购买、License 或每日次数限制。
 - Supabase、Upstash、Segment、Sentry 和服务端模型 Key 均为可选配置。
@@ -64,7 +67,7 @@ Vercel 部署步骤见 [deploy-ch.md](./deploy-ch.md)。个人 BYOK 模式不要
 
 以 [.example.env](./.example.env) 为准，常用项包括：
 
-- `BILIBILI_SESSION_TOKEN`：部分 B 站字幕需要登录态才能访问。
+- `BILIBILI_SESSION_TOKEN`：部分 B 站字幕或媒体信息需要登录态才能访问。
 - `OPENAI_COMPATIBLE_API_KEY`：可选服务端 Key；个人部署通常留空。
 - `OPENAI_COMPATIBLE_BASE_URL` / `OPENAI_COMPATIBLE_MODEL`：服务端默认模型配置。
 - `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`：可选结果缓存。
@@ -74,11 +77,11 @@ Vercel 部署步骤见 [deploy-ch.md](./deploy-ch.md)。个人 BYOK 模式不要
 
 ## 已知边界
 
-- 只总结平台已有字幕，不包含 ASR、本地文件上传或视频截图。
-- B 站字幕可能要求 `BILIBILI_SESSION_TOKEN`。
-- YouTube 字幕依赖非官方接口，平台策略变化时可能失效。
-- BibiGPT v1 会压缩较长字幕，不适合直接处理完整的二十小时课程。
-- Obsidian 导出、课程分段总结和重点截图属于后续独立流程，不在当前网页版本中。
+- 本地 ASR 需要首次下载浏览器端 Whisper 模型，耗时和显存/内存占用取决于设备与网络。
+- B 站字幕、音频和关键帧可能要求 `BILIBILI_SESSION_TOKEN`。
+- YouTube 字幕和音频解析依赖非官方接口，平台策略变化时可能失效。
+- YouTube 暂未实现关键画面保存；Obsidian ZIP 中的图片目前主要来自 Bilibili sprite。
+- 长课程可分段处理，但 20 小时以上课程仍建议按视频/章节分批运行，避免浏览器任务过长。
 
 ## 验证
 

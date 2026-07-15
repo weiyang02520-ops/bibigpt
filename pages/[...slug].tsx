@@ -5,16 +5,18 @@ import { useRouter } from 'next/router'
 import React, { useEffect, useMemo, useState } from 'react'
 import { SubmitHandler, useForm } from 'react-hook-form'
 import useFormPersist from 'react-hook-form-persist'
+import { CourseProgressPanel } from '~/components/course/CourseProgressPanel'
+import { CourseResult } from '~/components/course/CourseResult'
 import { useAnalytics } from '~/components/context/analytics'
 import { PromptOptions } from '~/components/PromptOptions'
 import { SubmitButton } from '~/components/SubmitButton'
-import { SummaryResult } from '~/components/SummaryResult'
 import { TypingSlogan } from '~/components/TypingSlogan'
 import { UserKeyInput } from '~/components/UserKeyInput'
+import { useCourseWorkflow } from '~/hooks/useCourseWorkflow'
 import { useOpenRouterModels } from '~/hooks/useOpenRouterModels'
 import { useToast } from '~/hooks/use-toast'
 import { useLocalStorage } from '~/hooks/useLocalStorage'
-import { useSummarize } from '~/hooks/useSummarize'
+import { DEFAULT_ASR_MODEL } from '~/lib/course/localAsr'
 import { VideoService } from '~/lib/types'
 import { DEFAULT_LANGUAGE } from '~/utils/constants/language'
 import { extractPage, extractUrl } from '~/utils/extractUrl'
@@ -47,16 +49,7 @@ export const Home: NextPage = () => {
     const [, queryString = ''] = router.asPath.split('?')
     return new URLSearchParams(queryString)
   }, [router.asPath])
-  const {
-    register,
-    handleSubmit,
-    control,
-    trigger,
-    getValues,
-    watch,
-    setValue,
-    formState: { errors },
-  } = useForm<VideoConfigSchema>({
+  const { register, handleSubmit, getValues, watch, setValue } = useForm<VideoConfigSchema>({
     defaultValues: {
       enableStream: true,
       model: '',
@@ -71,15 +64,15 @@ export const Home: NextPage = () => {
   })
 
   // TODO: add mobx or state manager
-  const [currentVideoId, setCurrentVideoId] = useState<string>('')
   const [currentVideoUrl, setCurrentVideoUrl] = useState<string>('')
   const [userKey, setUserKey] = useLocalStorage<string>('user-openai-apikey')
   const [userBaseUrl, setUserBaseUrl] = useLocalStorage<string>('user-openai-base-url')
   const [storedModel, setStoredModel] = useLocalStorage<string>('user-openai-model', '')
+  const [asrModel, setAsrModel] = useLocalStorage<string>('user-asr-model', DEFAULT_ASR_MODEL)
   const [oauthLoading, setOauthLoading] = useState(false)
   const [modelInitialized, setModelInitialized] = useState(false)
   const { models: openRouterModels, loading: modelLoading } = useOpenRouterModels()
-  const { loading, summary, resetSummary, summarize } = useSummarize()
+  const course = useCourseWorkflow()
   const { toast } = useToast()
   const { analytics } = useAnalytics()
 
@@ -122,10 +115,16 @@ export const Home: NextPage = () => {
     // https://www.youtube.com/watch?v=DHhOgWPKIKU
     const validatedUrl = getVideoIdFromUrl(router.isReady, currentVideoUrl, urlState, searchParams)
 
-    console.log('getVideoUrlFromUrl', validatedUrl)
-
-    validatedUrl && generateSummary(validatedUrl)
+    if (validatedUrl) {
+      setCurrentVideoUrl(validatedUrl)
+    }
   }, [router.isReady, urlState, searchParams])
+
+  useEffect(() => {
+    if (!currentVideoUrl && course.job?.sourceUrl) {
+      setCurrentVideoUrl(course.job.sourceUrl)
+    }
+  }, [course.job?.sourceUrl, currentVideoUrl])
 
   const validateUrlFromAddressBar = (url?: string) => {
     // note: auto refactor by ChatGPT
@@ -145,33 +144,43 @@ export const Home: NextPage = () => {
       return false
     }
 
-    // 来自输入框
-    if (!url) {
-      // -> '/video/BV12Y4y127rj'
-      const curUrl = String(videoUrl.split('.com')[1])
-      router.replace(curUrl)
-    } else {
+    if (url) {
       setCurrentVideoUrl(videoUrl)
     }
     return true
   }
   const generateSummary = async (url?: string) => {
     const formValues = getValues()
-    console.log('=======formValues=========', formValues)
-
-    resetSummary()
     if (!validateUrlFromAddressBar(url)) {
+      return
+    }
+
+    if (!userKey?.trim() || !formValues.model?.trim()) {
+      toast({
+        variant: 'destructive',
+        title: '模型配置不完整',
+        description: '请填写 API Key 和模型 ID。',
+      })
       return
     }
 
     const videoUrl = url || currentVideoUrl
     const { id, service } = getVideoId(videoUrl)
     if (service === VideoService.Youtube && id) {
-      setCurrentVideoId(id)
-      await summarize(
-        { videoId: id, service: VideoService.Youtube, ...formValues },
-        { userKey, baseUrl: userBaseUrl, shouldShowTimestamp: shouldShowTimestamp },
-      )
+      try {
+        await course.start(
+          { videoId: id, service: VideoService.Youtube, ...formValues },
+          { userKey, baseUrl: userBaseUrl, shouldShowTimestamp: shouldShowTimestamp },
+          videoUrl,
+          asrModel || DEFAULT_ASR_MODEL,
+        )
+      } catch (error) {
+        toast({
+          variant: 'destructive',
+          title: '课程处理失败',
+          description: error instanceof Error ? error.message : '请稍后重试',
+        })
+      }
       return
     }
 
@@ -180,12 +189,21 @@ export const Home: NextPage = () => {
       return
     }
 
-    const pageNumber = extractPage(currentVideoUrl, searchParams)
-    setCurrentVideoId(videoId)
-    await summarize(
-      { service: VideoService.Bilibili, videoId, pageNumber, ...formValues },
-      { userKey, baseUrl: userBaseUrl, shouldShowTimestamp },
-    )
+    const pageNumber = extractPage(videoUrl, searchParams)
+    try {
+      await course.start(
+        { service: VideoService.Bilibili, videoId, pageNumber, ...formValues },
+        { userKey, baseUrl: userBaseUrl, shouldShowTimestamp },
+        videoUrl,
+        asrModel || DEFAULT_ASR_MODEL,
+      )
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: '课程处理失败',
+        description: error instanceof Error ? error.message : '请稍后重试',
+      })
+    }
     setTimeout(() => {
       window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })
     }, 10)
@@ -200,6 +218,9 @@ export const Home: NextPage = () => {
   }
   const handleBaseUrlChange: React.ChangeEventHandler<HTMLInputElement> = (e) => {
     setUserBaseUrl(e.target.value)
+  }
+  const handleAsrModelChange: React.ChangeEventHandler<HTMLSelectElement> = (e) => {
+    setAsrModel(e.target.value)
   }
 
   const handleOpenRouterOAuth = async () => {
@@ -244,13 +265,13 @@ export const Home: NextPage = () => {
 
   const handleInputChange = async (e: any) => {
     const value = e.target.value
-    // todo: 兼容?query参数
     const regex = /((?:https?:\/\/|www\.)\S+)/g
     const matches = value.match(regex)
-    if (matches && matches[0].includes('b23.tv')) {
+    const detectedUrl = matches?.[0]?.replace(/[\])},，。]+$/, '') || value
+    if (detectedUrl.includes('b23.tv')) {
       toast({ title: '正在解析 b23.tv 短链接...' })
       try {
-        const response = await fetch(`/api/b23tv?url=${encodeURIComponent(matches[0])}`)
+        const response = await fetch(`/api/b23tv?url=${encodeURIComponent(detectedUrl)}`)
         const json = await response.json()
         if (!response.ok || typeof json.url !== 'string') {
           throw new Error(json.errorMessage || '短链接解析失败')
@@ -265,7 +286,7 @@ export const Home: NextPage = () => {
         })
       }
     } else {
-      setCurrentVideoUrl(value)
+      setCurrentVideoUrl(detectedUrl)
     }
   }
 
@@ -288,21 +309,25 @@ export const Home: NextPage = () => {
           className="mx-auto mt-10 w-full appearance-none rounded-lg rounded-md border bg-transparent py-2 pl-2 text-sm leading-6 text-slate-900 shadow-sm ring-1 ring-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
           placeholder="输入哔哩哔哩或 YouTube 视频链接，按下回车"
         />
-        <SubmitButton loading={loading} />
+        <SubmitButton loading={course.running} label="生成课程笔记" />
         <PromptOptions
           getValues={getValues}
           register={register}
           modelOptions={openRouterModels}
           modelLoading={modelLoading}
+          asrModel={asrModel || DEFAULT_ASR_MODEL}
+          onAsrModelChange={handleAsrModelChange}
         />
       </form>
-      {summary && (
-        <SummaryResult
-          summary={summary}
-          currentVideoUrl={currentVideoUrl}
-          currentVideoId={currentVideoId}
-          shouldShowTimestamp={shouldShowTimestamp}
-        />
+      <CourseProgressPanel
+        job={course.job}
+        progress={course.progress}
+        running={course.running}
+        onCancel={course.cancel}
+        onResume={() => generateSummary(course.job?.sourceUrl || currentVideoUrl)}
+      />
+      {course.job?.status === 'complete' && course.job.notes && (
+        <CourseResult job={course.job} onDelete={course.clear} />
       )}
     </div>
   )

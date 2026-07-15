@@ -12,12 +12,16 @@ export function PromptOptions({
   getValues,
   modelOptions,
   modelLoading,
+  asrModel,
+  onAsrModelChange,
 }: {
   // TODO: add types
   register: any
   getValues: UseFormReturn['getValues']
   modelOptions: OpenRouterModelOption[]
   modelLoading: boolean
+  asrModel: string
+  onAsrModelChange: React.ChangeEventHandler<HTMLSelectElement>
 }) {
   const shouldShowTimestamp = getValues('showTimestamp')
   return (
@@ -74,6 +78,21 @@ export function PromptOptions({
               {k}
             </option>
           ))}
+        </select>
+      </div>
+
+      <div>
+        <label htmlFor="asrModel" className="mb-2 block text-sm font-medium text-gray-900 dark:text-white">
+          无字幕转写
+        </label>
+        <select
+          id="asrModel"
+          value={asrModel}
+          onChange={onAsrModelChange}
+          className="block w-full rounded-md border border-gray-300 bg-gray-50 text-sm text-gray-900 focus:border-sky-500 focus:ring-sky-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+        >
+          <option value="onnx-community/whisper-small">准确</option>
+          <option value="onnx-community/whisper-base">快速</option>
         </select>
       </div>
 

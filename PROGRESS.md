@@ -139,3 +139,77 @@ API route.
 - A later read-only `npx vercel inspect` attempt could not start because the local npx cache lacked
   `@tootallnate/quickjs-emscripten`. No global npm packages were changed to work around it; this does not affect the
   already verified production deployment.
+
+## 2026-07-15 Course workflow goal
+
+### Goal and backup
+
+- New acceptance target: a captionless long-course workflow with local ASR, deterministic chunked summarization,
+  important frames and Obsidian export.
+- Required production reference: `BV1ySLc6QEcB`.
+- Pre-edit rollback copy: `backups/20260715-192024-course-workflow/` (intentionally untracked).
+- PRD: `docs/course-workflow-prd.md`.
+
+### Diagnosis
+
+- The reference video is one 2,570-second Bilibili page and its public player response contains zero subtitles.
+- Its lowest-bandwidth public audio-only stream is about 21 MB, supports byte ranges, and has 513 roughly five-second
+  MP4 media fragments. This permits bounded browser processing without downloading the video stream.
+- Its progress-preview source contains six 10x10 sprite sheets with 480x270 frames and a binary timestamp index, so
+  important screenshots can be produced without downloading the source video.
+- The current DogAPI model list contains no ASR model. `/v1/audio/transcriptions` returned 503, `gpt-5.5` ignored an
+  OpenAI-style audio part, and both configured Gemini models returned 503 for text-only probes.
+- `C:/Users/peng/Desktop/BibiGPT-v1-2.38.0/BibiGPT-v1-2.38.0` is an older source snapshot. It contains only a Whisper
+  TODO and does not provide ASR, long-course reduction, frame extraction or Obsidian export code.
+
+### Decision
+
+- Use browser-local Whisper with lazy media range decoding. DogAPI remains the text summarization provider.
+- Use established libraries for media decoding, browser inference, IndexedDB persistence and ZIP creation rather than
+  implementing those domains ad hoc.
+
+## 2026-07-16 YouTube audio fallback continuation
+
+### Backup
+
+- Pre-edit rollback copies:
+  - `backups/20260716-011115-youtube-audio-continue/`
+  - `backups/20260716-012806-doc-update/`
+
+### Changes
+
+- Added `lib/youtube/resolveYoutubeAudioStream.ts` using `youtubei.js` to resolve browser-decodable YouTube `audio/mp4`
+  streams for local ASR.
+- Added a restricted Node `vm` evaluator for YouTube player URL deciphering with string and WASM code generation
+  disabled inside the created context.
+- Added `pages/api/course/youtube-audio.ts`, a same-origin `HEAD`/`GET` Range proxy with a 2 MiB request limit,
+  temporary URL re-resolution and revision checks.
+- Updated `lib/course/fetchCourseSource.ts` so YouTube keeps the caption path when captions exist, and falls back to
+  `mode: local-asr` plus `/api/course/youtube-audio` when captions are empty or inaccessible.
+- Updated the generic local ASR audio-size error message and refreshed `README.md` to describe the course workflow,
+  ASR, Range audio handling, Obsidian export and current YouTube frame limitation.
+
+### Local verification
+
+- `npx tsc --noEmit --incremental false`: passed.
+- Changed-file Prettier check for the YouTube fallback and ASR files: passed.
+- `git diff --check`: passed.
+- `npm run build`: passed. The production build includes `/api/course/youtube-audio` alongside the Bilibili course
+  APIs.
+- Local dev server started at `http://localhost:3000`.
+- `POST /api/course/source` for `BV1ySLc6QEcB` returned `mode: local-asr`, duration `2570`, audio size `21062993`, six
+  Bilibili sprite images and 512 preview timestamps.
+- Bilibili audio proxy smoke tests passed:
+  - `HEAD /api/course/bilibili-audio?...` returned 200 with `Content-Length: 21062993`.
+  - `GET` with `Range: bytes=0-1023` returned 206 with `Content-Range: bytes 0-1023/21062993`.
+- Local YouTube source testing still cannot reach YouTube from this machine. The source API now reports the combined
+  path clearly: captions failed, then audio fallback also failed with `fetch failed`. This remains to be verified on
+  Vercel or any environment that can reach YouTube.
+
+### Next work
+
+- Re-run `npm run build` after any further edits.
+- Push the course workflow branch to GitHub and wait for Vercel.
+- Verify `/api/course/source` and `/api/course/youtube-audio` on Vercel with a public captionless YouTube video.
+- Run the required production end-to-end acceptance on `https://bibigpt-six.vercel.app` using `BV1ySLc6QEcB`, including
+  ASR, chunk summaries, key frames and Obsidian ZIP export.
