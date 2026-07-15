@@ -78,7 +78,7 @@ const loadModel = async (modelId: string) => {
     }
     return pipeline('automatic-speech-recognition', modelId, {
       device,
-      dtype: device === 'webgpu' ? 'q4' : 'q8',
+      dtype: device === 'webgpu' ? { encoder_model: 'fp32', decoder_model_merged: 'q4' } : 'fp32',
       progress_callback: progressCallback,
     })
   }
