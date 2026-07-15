@@ -213,3 +213,16 @@ API route.
 - Verify `/api/course/source` and `/api/course/youtube-audio` on Vercel with a public captionless YouTube video.
 - Run the required production end-to-end acceptance on `https://bibigpt-six.vercel.app` using `BV1ySLc6QEcB`, including
   ASR, chunk summaries, key frames and Obsidian ZIP export.
+
+### Deployment update
+
+- Commit `c292838` (`feat: add course notes workflow`) was pushed to `origin/main`.
+- Vercel production deployment `dpl_DpL1DMrGHQLPK7W7aBUqHSQU4esZ` reached `Ready` and aliases include
+  `https://bibigpt-six.vercel.app`.
+- External page fetch confirmed the production page now shows the course UI: "课程视频笔记", "生成课程笔记" and "无字幕转写".
+- This machine's direct HTTPS route to Vercel is currently unreliable:
+  - `curl` to both the production alias and deployment URL timed out or reset.
+  - The in-app browser reported `net::ERR_CONNECTION_CLOSED`.
+  - `vercel curl` also reached the same direct connection failure.
+- Because of that network limitation, production API verification and the required final browser E2E run on
+  `BV1ySLc6QEcB` are still not complete.
