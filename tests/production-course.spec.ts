@@ -62,6 +62,14 @@ test('completes the production Bilibili course workflow', async ({ page }) => {
 
   page.on('console', (message) => console.log(`[browser:${message.type()}] ${message.text()}`))
   page.on('pageerror', (error) => console.error(`[browser:error] ${error.message}`))
+  page.on('requestfailed', (request) =>
+    console.error(`[browser:requestfailed] ${request.method()} ${request.url()} ${request.failure()?.errorText || ''}`),
+  )
+  page.on('response', (response) => {
+    if (response.status() >= 400) {
+      console.error(`[browser:response] ${response.status()} ${response.url()}`)
+    }
+  })
 
   let chunkCount = 0
   await page.route('**/api/course/summarize', async (route) => {
@@ -110,6 +118,7 @@ test('completes the production Bilibili course workflow', async ({ page }) => {
   })
 
   await page.goto(SITE_URL, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+  await page.waitForFunction(() => Boolean((window as any).next?.router?.isReady), undefined, { timeout: 60_000 })
   const apiKeyInput = page.locator('#user-api-key')
   const apiKeyVisibilityButton = page.locator('button[aria-label*="API Key"]')
   await expect(apiKeyVisibilityButton).toHaveCount(1)
