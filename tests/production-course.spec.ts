@@ -52,6 +52,7 @@ async function readStoredJob(page: Page): Promise<StoredJob | null> {
 }
 
 test.use({
+  channel: 'chrome',
   launchOptions: { args: ['--disable-webgpu'] },
   viewport: { width: 1440, height: 1000 },
 })
