@@ -28,16 +28,21 @@ const nextConfig = {
     ],
   },
   async rewrites() {
-    return [
-      {
-        source: '/api/:path*',
-        destination: `${process.env.INTERNAL_API_HOSTNAME || ''}/api/:path*`,
-      },
+    const rewrites = [
       {
         source: '/blocked',
         destination: '/shop',
       },
     ]
+
+    if (process.env.INTERNAL_API_HOSTNAME) {
+      rewrites.unshift({
+        source: '/api/:path*',
+        destination: `${process.env.INTERNAL_API_HOSTNAME}/api/:path*`,
+      })
+    }
+
+    return rewrites
   },
 }
 

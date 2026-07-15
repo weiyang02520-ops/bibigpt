@@ -6,6 +6,10 @@ import { VideoConfig } from '~/lib/types'
 import { isDev } from '~/utils/env'
 import { getCacheId } from '~/utils/getCacheId'
 
+const cacheRedisUrl = process.env.UPSTASH_REDIS_REST_URL
+const cacheRedisToken = process.env.UPSTASH_REDIS_REST_TOKEN
+const cacheRedis = cacheRedisUrl && cacheRedisToken ? new Redis({ url: cacheRedisUrl, token: cacheRedisToken }) : null
+
 export enum ChatGPTAgent {
   user = 'user',
   system = 'system',
@@ -59,6 +63,19 @@ function toModelMessages(messages: ChatGPTMessage[]): ModelMessage[] {
   })) as ModelMessage[]
 }
 
+async function cacheResult(cacheId: string, value: string) {
+  if (!cacheRedis) {
+    return
+  }
+
+  try {
+    const data = await cacheRedis.set(cacheId, value)
+    console.info(`video ${cacheId} cached:`, data)
+  } catch (error) {
+    console.warn(`video ${cacheId} cache write failed`, error)
+  }
+}
+
 async function generateTextFallback(params: {
   model: ReturnType<ReturnType<typeof createProvider>['chatModel']>
   messages: ModelMessage[]
@@ -92,14 +109,12 @@ export async function fetchOpenAIResult(
 
   isDev && console.log({ apiKey: resolvedApiKey })
 
-  const redis = Redis.fromEnv()
   const cacheId = getCacheId(videoConfig)
 
   if (!payload.stream) {
     const betterResult = await generateTextFallback({ model, messages, payload })
 
-    const data = await redis.set(cacheId, betterResult)
-    console.info(`video ${cacheId} cached:`, data)
+    await cacheResult(cacheId, betterResult)
     isDev && console.log('========betterResult========', betterResult)
 
     return betterResult
@@ -136,8 +151,7 @@ export async function fetchOpenAIResult(
         }
 
         controller.close()
-        const data = await redis.set(cacheId, tempData)
-        console.info(`video ${cacheId} cached:`, data)
+        await cacheResult(cacheId, tempData)
         isDev && console.log('========betterResult after streamed========', tempData)
       } catch (streamError) {
         // Degrade gracefully: return full text instead of failing the whole request.
@@ -146,8 +160,7 @@ export async function fetchOpenAIResult(
           tempData = fallbackText
           controller.enqueue(encoder.encode(fallbackText))
           controller.close()
-          const data = await redis.set(cacheId, tempData)
-          console.info(`video ${cacheId} cached by fallback:`, data)
+          await cacheResult(cacheId, tempData)
           isDev && console.warn('stream failed, used fallback generateText', streamError)
         } catch (fallbackError) {
           controller.error(fallbackError)

@@ -56,6 +56,15 @@ Deploy the example using [Vercel](https://vercel.com?utm_source=github&utm_mediu
 
 Setup the env variables, by following the `./example.env` file.
 
+### Personal BYOK deployment
+
+For a private or personal deployment, Supabase, Upstash, and a server-side OpenAI key are optional. Deploy the
+repository to Vercel, open the site, and enter an OpenAI-compatible API key and base URL in the web UI. The key is
+stored in that browser's local storage and sent only to this deployment's API route.
+
+Configure Supabase only if account login is needed. Configure Upstash only if shared caching and rate limiting are
+needed. A public deployment should enable rate limiting before it is shared with other users.
+
 ## Support Docker
 
 https://github.com/JimmyLv/BibiGPT/pull/133

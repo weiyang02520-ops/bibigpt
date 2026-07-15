@@ -22,14 +22,23 @@ const fontSans = FontSans({
   variable: '--font-sans',
   display: 'swap',
 })
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+const isSupabaseEnabled = Boolean(supabaseUrl && supabaseAnonKey)
+
 function MyApp({
   Component,
   pageProps,
 }: AppProps<{
   initialSession: Session
 }>) {
-  // Create a new supabase browser client on every first render.
-  const [supabaseClient] = useState(() => createBrowserSupabaseClient())
+  const [supabaseClient] = useState(() =>
+    createBrowserSupabaseClient({
+      supabaseUrl: supabaseUrl || 'https://self-hosted.invalid',
+      supabaseKey: supabaseAnonKey || 'self-hosted-without-auth',
+    }),
+  )
   const { SignInModal, setShowSignInModal: showSingIn } = useSignInModal()
 
   return (
@@ -38,7 +47,7 @@ function MyApp({
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <TooltipProvider>
             <div className={cn('mx-auto flex min-h-screen flex-col justify-center font-sans', fontSans.variable)}>
-              <Header showSingIn={showSingIn} />
+              <Header showSingIn={showSingIn} authEnabled={isSupabaseEnabled} />
               <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col justify-center bg-white text-slate-900 antialiased dark:bg-slate-900 dark:text-slate-50">
                 <Component {...pageProps} showSingIn={showSingIn} />
                 <Analytics />
@@ -48,7 +57,7 @@ function MyApp({
             </div>
             <TailwindIndicator />
             <Toaster />
-            <SignInModal />
+            {isSupabaseEnabled ? <SignInModal /> : null}
           </TooltipProvider>
         </ThemeProvider>
       </SessionContextProvider>

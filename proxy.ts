@@ -9,7 +9,8 @@ import { checkOpenaiApiKeys } from './lib/openai/checkOpenaiApiKey'
 import { ratelimitForApiKeyIps, ratelimitForFreeAccounts, ratelimitForIps } from './lib/upstash'
 import { isDev } from './utils/env'
 
-const redis = Redis.fromEnv()
+const hasCacheRedis = Boolean(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN)
+const redis = hasCacheRedis ? Redis.fromEnv() : null
 
 function isChatRequest(req: NextRequest) {
   return req.nextUrl.pathname === '/api/chat'
@@ -80,10 +81,12 @@ export async function proxy(req: NextRequest, context: NextFetchEvent) {
     // licenseKeys
     if (userKey) {
       if (checkOpenaiApiKeys(userKey)) {
-        const { success, remaining } = await ratelimitForApiKeyIps.limit(ipIdentifier)
-        console.log(`use user apiKey ${ipIdentifier}, remaining: ${remaining}`)
-        if (!success) {
-          return redirectShop(req)
+        if (ratelimitForApiKeyIps) {
+          const { success, remaining } = await ratelimitForApiKeyIps.limit(ipIdentifier)
+          console.log(`use user apiKey ${ipIdentifier}, remaining: ${remaining}`)
+          if (!success) {
+            return redirectShop(req)
+          }
         }
 
         return NextResponse.next()
@@ -101,7 +104,7 @@ export async function proxy(req: NextRequest, context: NextFetchEvent) {
     }
     //  👇 below only works for production
 
-    if (!userKey) {
+    if (!userKey && ratelimitForIps) {
       const { success, remaining } = await ratelimitForIps.limit(ipIdentifier)
       console.log(`ip free user ${ipIdentifier}, remaining: ${remaining}`)
       if (!success) {
@@ -117,6 +120,9 @@ export async function proxy(req: NextRequest, context: NextFetchEvent) {
         // Check auth condition
         const userEmail = session?.user.email
         if (userEmail) {
+          if (!ratelimitForFreeAccounts) {
+            return res
+          }
           // Authentication successful, forward request to protected route.
           const { success, remaining } = await ratelimitForFreeAccounts.limit(userEmail)
           // TODO: only reduce the count after summarized successfully
@@ -133,7 +139,7 @@ export async function proxy(req: NextRequest, context: NextFetchEvent) {
       }
     }
 
-    const result = await redis.get<string>(cacheId)
+    const result = redis ? await redis.get<string>(cacheId) : null
     if (result) {
       console.log('hit cache for ', cacheId)
       if (isChatRequest(req)) {
@@ -152,6 +158,6 @@ export async function proxy(req: NextRequest, context: NextFetchEvent) {
   return NextResponse.next()
 }
 
-export const proxyConfig = {
+export const config = {
   matcher: ['/api/sumup', '/api/chat'],
 }
