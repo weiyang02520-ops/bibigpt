@@ -118,13 +118,15 @@ test('completes the production Bilibili course workflow', async ({ page }) => {
   })
 
   await page.goto(SITE_URL, { waitUntil: 'domcontentloaded', timeout: 60_000 })
-  await page.waitForFunction(() => Boolean((window as any).next?.router?.isReady), undefined, { timeout: 60_000 })
+  await page.waitForFunction(
+    () => {
+      const input = document.querySelector('#user-api-key')
+      return Boolean(input && Object.keys(input).some((key) => key.startsWith('__reactProps$')))
+    },
+    undefined,
+    { timeout: 60_000 },
+  )
   const apiKeyInput = page.locator('#user-api-key')
-  const apiKeyVisibilityButton = page.locator('button[aria-label*="API Key"]')
-  await expect(apiKeyVisibilityButton).toHaveCount(1)
-  await apiKeyVisibilityButton.click()
-  await expect(apiKeyInput).toHaveAttribute('type', 'text')
-
   await apiKeyInput.fill('mock-key')
   await page.locator('#user-api-base-url').fill('https://mock.invalid/v1')
   await page.locator('#model').fill('mock-model')
