@@ -1,0 +1,48 @@
+name: Production course E2E
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  course-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install test runtime
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm install --no-save --ignore-scripts --no-audit --no-fund @playwright/test@1.54.1
+          npx playwright install --with-deps chromium
+
+      - name: Run production course workflow
+        env:
+          PLAYWRIGHT_HTML_OPEN: never
+        run: npx playwright test tests/production-course.spec.ts --reporter=line --workers=1
+
+      - name: Validate Obsidian bundle
+        if: success()
+        run: |
+          unzip -q artifacts/production-course/course-notes.zip -d artifacts/production-course/obsidian
+          test -s artifacts/production-course/obsidian/README.md
+          test -s artifacts/production-course/obsidian/transcript.md
+          test "$(find artifacts/production-course/obsidian/images -type f | wc -l)" -ge 3
+          grep --fixed-strings --quiet 'Git + GitHub 课程笔记验收' artifacts/production-course/obsidian/README.md
+
+      - name: Upload acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-course-evidence
+          path: artifacts/production-course
+          if-no-files-found: warn
+          retention-days: 7
