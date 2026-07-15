@@ -235,3 +235,10 @@ API route.
   - `vercel curl` also reached the same direct connection failure.
 - Because of that network limitation, production API verification and the required final browser E2E run on
   `BV1ySLc6QEcB` are still not complete.
+
+## 2026-07-16 Obsidian strategic goal
+
+- Obsidian is now a required final outcome of the course workflow, not an optional export.
+- Acceptance requires a usable vault with a course index, per-lesson notes, timestamped transcript archives, key frames, review material, and a resumable manifest.
+- BibiGPT remains responsible for media/caption/ASR routing, chunked summarization, key-frame selection, and export orchestration.
+- The standalone `course-obsidian-pipeline` remains the deterministic local packaging/fallback reference until both implementations share one validated vault contract.

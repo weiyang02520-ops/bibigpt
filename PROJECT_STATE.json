@@ -13,7 +13,8 @@
     "verifiedCommit": "8d93875",
     "legacyArchiveRef": "archive/bibigpt-deploy-20260715",
     "remote": "https://github.com/weiyang02520-ops/bibigpt.git",
-    "productionUrl": "https://bibigpt-six.vercel.app"
+    "productionUrl": "https://bibigpt-six.vercel.app",
+    "primaryOutcome": "A resumable Obsidian course vault containing an index, per-lesson notes, timestamped transcripts, key frames, review material, and a manifest."
   },
   "verification": {
     "status": "canonical-verified-legacy-history-preserved",
