@@ -1,15 +1,17 @@
 import { createMiddlewareSupabaseClient } from '@supabase/auth-helpers-nextjs'
-import { Redis } from '@upstash/redis'
-import type { NextFetchEvent, NextRequest } from 'next/server'
+import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { SummarizeParams } from '~/lib/types'
 import { getCacheId } from '~/utils/getCacheId'
 import { validateLicenseKey } from './lib/lemon'
 import { checkOpenaiApiKeys } from './lib/openai/checkOpenaiApiKey'
-import { ratelimitForApiKeyIps, ratelimitForFreeAccounts, ratelimitForIps } from './lib/upstash'
+import { cacheRedis, ratelimitForApiKeyIps, ratelimitForFreeAccounts, ratelimitForIps } from './lib/upstash'
 import { isDev } from './utils/env'
 
-const redis = Redis.fromEnv()
+const isSupabaseConfigured = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+const hasProxyServices = Boolean(
+  cacheRedis || ratelimitForApiKeyIps || ratelimitForFreeAccounts || ratelimitForIps || process.env.LEMON_API_KEY,
+)
 
 function isChatRequest(req: NextRequest) {
   return req.nextUrl.pathname === '/api/chat'
@@ -47,8 +49,12 @@ function redirectShop(req: NextRequest): NextResponse {
   return NextResponse.redirect(new URL('/shop', req.url))
 }
 
-export async function proxy(req: NextRequest, context: NextFetchEvent) {
+export async function proxy(req: NextRequest) {
   if (req.method !== 'POST') {
+    return NextResponse.next()
+  }
+
+  if (!hasProxyServices) {
     return NextResponse.next()
   }
 
@@ -79,11 +85,13 @@ export async function proxy(req: NextRequest, context: NextFetchEvent) {
 
     // licenseKeys
     if (userKey) {
-      if (checkOpenaiApiKeys(userKey)) {
-        const { success, remaining } = await ratelimitForApiKeyIps.limit(ipIdentifier)
-        console.log(`use user apiKey ${ipIdentifier}, remaining: ${remaining}`)
-        if (!success) {
-          return redirectShop(req)
+      if (checkOpenaiApiKeys(userKey) || !process.env.LEMON_API_KEY) {
+        if (ratelimitForApiKeyIps) {
+          const { success, remaining } = await ratelimitForApiKeyIps.limit(ipIdentifier)
+          console.log(`use user apiKey ${ipIdentifier}, remaining: ${remaining}`)
+          if (!success) {
+            return redirectShop(req)
+          }
         }
 
         return NextResponse.next()
@@ -101,11 +109,15 @@ export async function proxy(req: NextRequest, context: NextFetchEvent) {
     }
     //  👇 below only works for production
 
-    if (!userKey) {
+    if (!userKey && ratelimitForIps) {
       const { success, remaining } = await ratelimitForIps.limit(ipIdentifier)
       console.log(`ip free user ${ipIdentifier}, remaining: ${remaining}`)
       if (!success) {
         // We need to create a response and hand it to the supabase client to be able to modify the response headers.
+        if (!isSupabaseConfigured || !ratelimitForFreeAccounts) {
+          return redirectAuth(req)
+        }
+
         const res = NextResponse.next()
         // TODO: unique to a user (userid, email etc) instead of IP
         // Create authenticated Supabase Client.
@@ -133,16 +145,18 @@ export async function proxy(req: NextRequest, context: NextFetchEvent) {
       }
     }
 
-    const result = await redis.get<string>(cacheId)
-    if (result) {
-      console.log('hit cache for ', cacheId)
-      if (isChatRequest(req)) {
-        return new NextResponse(result, {
-          status: 200,
-          headers: { 'content-type': 'text/plain; charset=utf-8' },
-        })
+    if (cacheRedis) {
+      const result = await cacheRedis.get<string>(cacheId)
+      if (result) {
+        console.log('hit cache for ', cacheId)
+        if (isChatRequest(req)) {
+          return new NextResponse(result, {
+            status: 200,
+            headers: { 'content-type': 'text/plain; charset=utf-8' },
+          })
+        }
+        return NextResponse.json(result)
       }
-      return NextResponse.json(result)
     }
   } catch (e) {
     console.error(e)
@@ -152,6 +166,6 @@ export async function proxy(req: NextRequest, context: NextFetchEvent) {
   return NextResponse.next()
 }
 
-export const proxyConfig = {
+export const config = {
   matcher: ['/api/sumup', '/api/chat'],
 }

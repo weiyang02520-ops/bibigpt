@@ -22,36 +22,46 @@ const fontSans = FontSans({
   variable: '--font-sans',
   display: 'swap',
 })
+
+const isSupabaseConfigured = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+
 function MyApp({
   Component,
   pageProps,
 }: AppProps<{
   initialSession: Session
 }>) {
-  // Create a new supabase browser client on every first render.
-  const [supabaseClient] = useState(() => createBrowserSupabaseClient())
+  const [supabaseClient] = useState(() => (isSupabaseConfigured ? createBrowserSupabaseClient() : null))
   const { SignInModal, setShowSignInModal: showSingIn } = useSignInModal()
+
+  const app = (
+    <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+      <TooltipProvider>
+        <div className={cn('mx-auto flex min-h-screen flex-col justify-center font-sans', fontSans.variable)}>
+          <Header showSingIn={showSingIn} authEnabled={Boolean(supabaseClient)} />
+          <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col justify-center bg-white text-slate-900 antialiased dark:bg-slate-900 dark:text-slate-50">
+            <Component {...pageProps} showSingIn={showSingIn} />
+            <Analytics />
+            <CommandMenu />
+          </main>
+          <Footer />
+        </div>
+        <TailwindIndicator />
+        <Toaster />
+        {supabaseClient ? <SignInModal /> : null}
+      </TooltipProvider>
+    </ThemeProvider>
+  )
 
   return (
     <AnalyticsProvider>
-      <SessionContextProvider supabaseClient={supabaseClient} initialSession={pageProps.initialSession}>
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          <TooltipProvider>
-            <div className={cn('mx-auto flex min-h-screen flex-col justify-center font-sans', fontSans.variable)}>
-              <Header showSingIn={showSingIn} />
-              <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col justify-center bg-white text-slate-900 antialiased dark:bg-slate-900 dark:text-slate-50">
-                <Component {...pageProps} showSingIn={showSingIn} />
-                <Analytics />
-                <CommandMenu />
-              </main>
-              <Footer />
-            </div>
-            <TailwindIndicator />
-            <Toaster />
-            <SignInModal />
-          </TooltipProvider>
-        </ThemeProvider>
-      </SessionContextProvider>
+      {supabaseClient ? (
+        <SessionContextProvider supabaseClient={supabaseClient} initialSession={pageProps.initialSession}>
+          {app}
+        </SessionContextProvider>
+      ) : (
+        app
+      )}
     </AnalyticsProvider>
   )
 }

@@ -5,10 +5,6 @@ import { selectApiKeyAndActivatedLicenseKey } from '~/lib/openai/selectApiKeyAnd
 import { SummarizeParams } from '~/lib/types'
 import { writeWebStreamToNodeResponse } from '~/lib/openai/writeWebStreamToNodeResponse'
 
-if (!process.env.OPENAI_API_KEY && !process.env.OPENAI_COMPATIBLE_API_KEY) {
-  throw new Error('Missing env var for OpenAI-compatible provider API key')
-}
-
 type ChatBody = Partial<SummarizeParams> & {
   messages?: Array<{ role: string; content?: string }>
 }

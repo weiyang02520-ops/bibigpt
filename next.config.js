@@ -4,15 +4,27 @@
 // https://docs.sentry.io/platforms/javascript/guides/nextjs/manual-setup/
 const { withSentryConfig } = require('@sentry/nextjs')
 
+function toHostname(value) {
+  if (!value) {
+    return null
+  }
+
+  try {
+    return new URL(value.includes('://') ? value : `https://${value}`).hostname
+  } catch {
+    return null
+  }
+}
+
+const supabaseHostname = toHostname(process.env.SUPABASE_HOSTNAME || process.env.NEXT_PUBLIC_SUPABASE_URL)
+const internalApiHostname = process.env.INTERNAL_API_HOSTNAME?.replace(/\/+$/, '')
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
   images: {
     remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: process.env.SUPABASE_HOSTNAME || 'xxxx.supabase.co', // to prevent vercel failed
-      },
+      ...(supabaseHostname ? [{ protocol: 'https', hostname: supabaseHostname }] : []),
       {
         protocol: 'https',
         hostname: 'b.jimmylv.cn',
@@ -29,10 +41,14 @@ const nextConfig = {
   },
   async rewrites() {
     return [
-      {
-        source: '/api/:path*',
-        destination: `${process.env.INTERNAL_API_HOSTNAME || ''}/api/:path*`,
-      },
+      ...(internalApiHostname
+        ? [
+            {
+              source: '/api/:path*',
+              destination: `${internalApiHostname}/api/:path*`,
+            },
+          ]
+        : []),
       {
         source: '/blocked',
         destination: '/shop',

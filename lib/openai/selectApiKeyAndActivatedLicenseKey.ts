@@ -4,8 +4,11 @@ import { sample } from '~/utils/fp'
 
 export async function selectApiKeyAndActivatedLicenseKey(apiKey?: string, videoId?: string) {
   if (apiKey) {
-    if (checkOpenaiApiKeys(apiKey)) {
-      const userApiKeys = apiKey.split(',')
+    if (checkOpenaiApiKeys(apiKey) || !process.env.LEMON_API_KEY) {
+      const userApiKeys = apiKey
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean)
       return sample(userApiKeys)
     }
 
