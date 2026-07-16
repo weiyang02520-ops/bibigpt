@@ -268,3 +268,49 @@ API route.
 - Acceptance requires a usable vault with a course index, per-lesson notes, timestamped transcript archives, key frames, review material, and a resumable manifest.
 - BibiGPT remains responsible for media/caption/ASR routing, chunked summarization, key-frame selection, and export orchestration.
 - The standalone `course-obsidian-pipeline` remains the deterministic local packaging/fallback reference until both implementations share one validated vault contract.
+
+## 2026-07-16 Final Bilibili course and Obsidian Vault acceptance
+
+### Implementation
+
+- Added the fixed-root `BibiGPT-Vault/` export contract and browser builder.
+- Every vault contains `00_课程索引.md`, per-lesson notes, timestamped transcripts, review material, selected images,
+  and `manifest.json`.
+- Lesson IDs derive from service, video ID, and page number instead of mutable titles.
+- Existing vault ZIPs can be updated from the result page.
+- Unknown files and user edits are preserved. New generated content is written to `.bibigpt-new` on a collision.
+- Manifest ownership states distinguish generated, modified, and conflict artifacts and include SHA-256 hashes.
+- Windows/macOS case and Unicode-normalized path collisions are rejected.
+- Added a standalone validator plus fast merger and local desktop/mobile UI tests.
+- Test tooling is installed in an isolated Runner temporary directory so it cannot update application dependencies.
+
+### Verification
+
+- Local checks passed:
+  - `npx tsc --noEmit`
+  - `npm run build`
+  - `tests/obsidian-vault.integration.ts`
+  - `tests/course-result-vault.spec.ts`
+  - initial and repeated ZIP validation with `scripts/validate-obsidian-vault.mjs`
+- Vercel deployed the current `main` branch successfully to `https://bibigpt-six.vercel.app`.
+- GitHub Actions production run `29470408570` passed in 21 minutes 56 seconds against commit `513d11e`.
+- The required Bilibili reference `BV1ySLc6QEcB` completed with:
+  - status `complete`
+  - source mode `local-asr`
+  - duration and transcription cursor `2570 / 2570`
+  - 1,195 transcript segments
+  - 6 chunk summaries and 6 final chapters
+  - 6 Bilibili sprite sheets and 512 preview timestamps
+  - 8 exported JPEG key frames
+- The initial vault and unchanged rerun each validated with 12 generated artifacts and zero conflicts.
+- A user-edited lesson rerun preserved the canonical note and produced exactly one `.bibigpt-new` conflict.
+- Downloaded acceptance evidence is under
+  `C:\Users\peng\AppData\Local\Temp\bibigpt-run-29470408570\production-course-evidence`.
+
+### Final boundary
+
+- The user confirmed that current learning is Bilibili-focused, so YouTube captionless production acceptance is not a
+  completion requirement for this delivery.
+- YouTube remains supported for caption-based use. WebM/Opus fallback compatibility was added, but further YouTube
+  source-policy testing is optional and must not delay the accepted Bilibili workflow.
+- The previously shared provider key must be rotated before any further real-provider quality run.

@@ -7,6 +7,8 @@ This is the only writable BibiGPT root. Read `README.md`, `PROJECT_STATE.json`, 
 Current summary:
 
 - Personal BYOK production deployment is operational.
-- The canonical `main` branch matched `origin/main` at commit `8d93875` during the 2026-07-16 continuity audit.
-- The browser course workflow exists in this root.
+- The canonical `main` branch matches `origin/main` at commit `1a17cbb`.
+- The Bilibili browser course workflow and updateable Obsidian Vault are production-accepted.
+- Required reference `BV1ySLc6QEcB` completed at `2570 / 2570` seconds with 1,195 transcript segments and 8 exported
+  frames in GitHub Actions run `29470408570`.
 - `..\bibigpt-deploy` is a frozen legacy worktree and must not be used for development or deployment.
