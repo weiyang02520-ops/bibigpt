@@ -140,11 +140,16 @@ const normalizeFormats = (formats: unknown): YoutubeFormat[] =>
     : []
 
 const selectAudioFormat = (formats: YoutubeFormat[], preferredItag?: number) => {
-  const audioFormats = formats.filter((format) => format.mime_type.includes('audio/mp4'))
-  const mp4aFormats = audioFormats.filter((format) => getCodec(format.mime_type).includes('mp4a'))
-  const candidates = mp4aFormats.length > 0 ? mp4aFormats : audioFormats
+  const audioFormats = formats.filter(
+    (format) => format.mime_type.includes('audio/mp4') || format.mime_type.includes('audio/webm'),
+  )
+  const preferredFormats = audioFormats.filter((format) => {
+    const codec = getCodec(format.mime_type)
+    return codec.includes('mp4a') || codec.includes('opus')
+  })
+  const candidates = preferredFormats.length > 0 ? preferredFormats : audioFormats
   if (candidates.length < 1) {
-    throw new Error('YouTube 没有返回可用于浏览器本地转写的 MP4 音频流')
+    throw new Error('YouTube 没有返回可用于浏览器本地转写的 MP4/WebM 音频流')
   }
 
   const selected = preferredItag

@@ -1,4 +1,4 @@
-import { AudioBufferSink, CustomSource, Input, MP4, WrappedAudioBuffer } from 'mediabunny'
+import { AudioBufferSink, CustomSource, Input, MP4, WEBM, WrappedAudioBuffer } from 'mediabunny'
 import { CourseAudioSource, TranscriptSegment } from '~/lib/course/types'
 
 export const DEFAULT_ASR_MODEL = 'onnx-community/whisper-small'
@@ -274,7 +274,7 @@ export async function transcribeCourseAudio(params: {
       return output
     },
   })
-  const input = new Input({ formats: [MP4], source })
+  const input = new Input({ formats: [MP4, WEBM], source })
   const worker = new CourseAsrWorker()
   const abort = () => {
     input.dispose()
@@ -288,7 +288,7 @@ export async function transcribeCourseAudio(params: {
       throw new Error('音频流没有可解码的音轨')
     }
     if (!(await track.canDecode())) {
-      throw new Error('当前浏览器不能解码该视频的 AAC 音频，请使用最新版 Chrome 或 Edge')
+      throw new Error('当前浏览器不能解码该视频的 AAC/Opus 音频，请使用最新版 Chrome 或 Edge')
     }
 
     const device = await worker.load(
