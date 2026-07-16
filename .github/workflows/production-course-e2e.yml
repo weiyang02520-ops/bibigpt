@@ -10,9 +10,6 @@ jobs:
   course-e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 180
-    env:
-      TEST_RUNTIME: ${{ runner.temp }}/bibigpt-test-runtime
-      NODE_PATH: ${{ runner.temp }}/bibigpt-test-runtime/node_modules
     steps:
       - uses: actions/checkout@v4
 
@@ -24,16 +21,16 @@ jobs:
       - name: Install test runtime
         run: |
           npm ci --ignore-scripts --no-audit --no-fund
-          npm install --prefix "$TEST_RUNTIME" --package-lock=false --ignore-scripts --no-audit --no-fund @playwright/test@1.54.1 tsx@4.20.3
-          node "$TEST_RUNTIME/node_modules/playwright/cli.js" install --with-deps chromium
+          npm install --prefix "$RUNNER_TEMP/bibigpt-test-runtime" --package-lock=false --ignore-scripts --no-audit --no-fund @playwright/test@1.54.1 tsx@4.20.3
+          node "$RUNNER_TEMP/bibigpt-test-runtime/node_modules/playwright/cli.js" install --with-deps chromium
 
       - name: Validate Obsidian merger contract
-        run: node "$TEST_RUNTIME/node_modules/tsx/dist/cli.mjs" tests/obsidian-vault.integration.ts
+        run: NODE_PATH="$RUNNER_TEMP/bibigpt-test-runtime/node_modules" node "$RUNNER_TEMP/bibigpt-test-runtime/node_modules/tsx/dist/cli.mjs" tests/obsidian-vault.integration.ts
 
       - name: Run production course workflow
         env:
           PLAYWRIGHT_HTML_OPEN: never
-        run: node "$TEST_RUNTIME/node_modules/@playwright/test/cli.js" test tests/production-course.spec.ts --config=playwright.config.cjs --reporter=line --workers=1
+        run: NODE_PATH="$RUNNER_TEMP/bibigpt-test-runtime/node_modules" node "$RUNNER_TEMP/bibigpt-test-runtime/node_modules/@playwright/test/cli.js" test tests/production-course.spec.ts --config=playwright.config.cjs --reporter=line --workers=1
 
       - name: Validate Obsidian bundle
         if: success()
