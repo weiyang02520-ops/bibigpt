@@ -1,5 +1,5 @@
-import JSZip from 'jszip'
 import { formatTimestamp } from '~/lib/course/chunkTranscript'
+import { buildObsidianVault, getObsidianLessonId, ObsidianVaultBuildResult } from '~/lib/course/obsidianVault'
 import { CourseFrameManifest, CourseJob } from '~/lib/course/types'
 
 export type FrameReference = {
@@ -12,25 +12,6 @@ export type FrameReference = {
   frameHeight: number
   columns: number
   rows: number
-}
-
-const WINDOWS_RESERVED_NAME = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i
-
-export const sanitizeFilename = (value: string) => {
-  const cleaned = value
-    .normalize('NFC')
-    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, '-')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .replace(/[. ]+$/g, '')
-  const truncated = Array.from(cleaned)
-    .slice(0, 100)
-    .join('')
-    .replace(/[. ]+$/g, '')
-  if (!truncated || truncated === '.' || truncated === '..') {
-    return 'BibiGPT-course'
-  }
-  return WINDOWS_RESERVED_NAME.test(truncated) ? `_${truncated}` : truncated
 }
 
 const yamlString = (value: string) => JSON.stringify(value.replace(/[\r\n]+/g, ' ').trim())
@@ -213,25 +194,34 @@ export const buildCourseMarkdown = (
   return lines.join('\n')
 }
 
-const buildTranscriptMarkdown = (job: CourseJob, sourceUrl: string) => {
-  const lines = [`# ${job.source.title} - 完整转写`, '', `> [原视频](${markdownUrl(sourceUrl)})`, '']
-  job.transcript.forEach((segment) => lines.push(`- **${formatTimestamp(segment.start)}** ${segment.text}`))
-  return lines.join('\n')
+const downloadBlob = (blob: Blob, filename: string) => {
+  const url = URL.createObjectURL(blob)
+  try {
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = filename
+    document.body.append(anchor)
+    anchor.click()
+    anchor.remove()
+  } finally {
+    window.setTimeout(() => URL.revokeObjectURL(url), 60000)
+  }
 }
 
-export async function downloadObsidianBundle(job: CourseJob, sourceUrl: string) {
+export async function downloadObsidianBundle(
+  job: CourseJob,
+  sourceUrl: string,
+  existingZip?: ArrayBuffer | Blob,
+): Promise<ObsidianVaultBuildResult> {
   if (!job.notes) {
     throw new Error('课程笔记尚未完成')
   }
-  const zip = new JSZip()
-  const root = zip.folder(sanitizeFilename(job.notes.title))
-  if (!root) {
-    throw new Error('无法创建导出目录')
-  }
 
-  const exportedImages: Array<{ timestamp: number; reason: string; path: string }> = []
+  const exportedImages: Array<{ timestamp: number; reason: string; path: string; data: Blob }> = []
+  let selectedFrameCount = 0
   if (job.source.frames) {
     const selectedFrames = selectCourseFrames(job)
+    selectedFrameCount = selectedFrames.length
     for (let index = 0; index < selectedFrames.length; index += 1) {
       const { frame, reason } = selectedFrames[index]
       const filename = `${String(index + 1).padStart(2, '0')}-${formatTimestamp(frame.timestamp).replace(
@@ -239,30 +229,22 @@ export async function downloadObsidianBundle(job: CourseJob, sourceUrl: string) 
         '-',
       )}.jpg`
       try {
-        root.file(`images/${filename}`, await cropFrame(frame))
         exportedImages.push({
           timestamp: frame.timestamp,
           reason,
-          path: `images/${filename}`,
+          path: filename,
+          data: await cropFrame(frame),
         })
       } catch (error) {
         console.warn(error instanceof Error ? error.message : '关键画面导出失败')
       }
     }
   }
-
-  root.file('README.md', buildCourseMarkdown(job, sourceUrl, exportedImages, true))
-  root.file('transcript.md', buildTranscriptMarkdown(job, sourceUrl))
-  const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } })
-  const url = URL.createObjectURL(blob)
-  try {
-    const anchor = document.createElement('a')
-    anchor.href = url
-    anchor.download = `${sanitizeFilename(job.notes.title)}-Obsidian.zip`
-    document.body.append(anchor)
-    anchor.click()
-    anchor.remove()
-  } finally {
-    window.setTimeout(() => URL.revokeObjectURL(url), 60000)
+  if (existingZip && exportedImages.length !== selectedFrameCount) {
+    throw new Error('关键画面未全部获取，已取消更新以保留现有 Vault 图片，请稍后重试')
   }
+
+  const result = await buildObsidianVault(job, sourceUrl, exportedImages, existingZip)
+  downloadBlob(result.blob, `BibiGPT-Vault-${getObsidianLessonId(job)}.zip`)
+  return result
 }

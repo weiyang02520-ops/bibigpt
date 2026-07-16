@@ -14,7 +14,8 @@
 - 没有可访问字幕时，使用浏览器本地 Whisper 转写音频。
 - Bilibili 和 YouTube 音频都通过同源 Range 代理按小块读取，不把整段视频常驻下载到浏览器内存。
 - 长课程会先切分转写文本，再逐段总结并合成完整课程笔记。
-- 支持关键画面预览和 Obsidian Markdown/ZIP 导出；Bilibili 可从平台预览 sprite 裁切画面。
+- 支持关键画面预览和完整 Obsidian Vault ZIP：课程索引、课程笔记、逐段转写、复习材料、图片和 manifest。
+- 可用稳定 lesson ID 更新已有 Vault；未知文件和用户编辑会保留，冲突的新版本写入 `.bibigpt-new`。
 - 课程任务会保存在当前浏览器 IndexedDB，刷新后可继续。
 - API Key 保存在当前浏览器的 localStorage，不写入项目或结果缓存。
 - 个人 BYOK 请求没有购买、License 或每日次数限制。
@@ -26,6 +27,7 @@
 2. 填写 API Key 和 API Base URL。
 3. 填写模型服务支持的模型 ID。
 4. 粘贴哔哩哔哩或 YouTube 视频链接并点击“一键总结”。
+5. 使用“新建 Vault”下载独立知识库；后续使用“更新 Vault”选择旧 ZIP，安全合并同一课程或加入新课程。
 
 生产环境中的自定义 Base URL 必须是公网 HTTPS 地址。`localhost`、局域网、链路本地和其他非公网地址会被拒绝。
 

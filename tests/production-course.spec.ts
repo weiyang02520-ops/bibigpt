@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import JSZip from 'jszip'
 
 const SITE_URL = 'https://bibigpt-six.vercel.app'
 const VIDEO_URL = 'https://www.bilibili.com/video/BV1ySLc6QEcB'
@@ -7,6 +8,8 @@ const ARTIFACT_DIR = 'artifacts/production-course'
 const MAX_RUNTIME_MS = 150 * 60 * 1000
 
 type StoredJob = {
+  sourceFingerprint?: string
+  updatedAt?: string
   status?: string
   error?: string | null
   transcribedUntil?: number
@@ -18,6 +21,10 @@ type StoredJob = {
     keyMoments?: unknown[]
   } | null
   source?: {
+    service?: string
+    videoId?: string
+    pageNumber?: number
+    mode?: string
     duration?: number
     frames?: { images?: string[]; timestamps?: number[] } | null
   }
@@ -191,6 +198,7 @@ test('completes the production Bilibili course workflow', async ({ page }) => {
   expect(job?.notes?.keyMoments?.length).toBeGreaterThanOrEqual(3)
   expect(job?.source?.frames?.images?.length).toBeGreaterThan(0)
   expect(job?.source?.frames?.timestamps?.length).toBeGreaterThan(100)
+  if (!job) throw new Error('Completed course job disappeared from IndexedDB')
 
   await writeFile(`${ARTIFACT_DIR}/result.json`, JSON.stringify(job, null, 2), 'utf8')
   await expect(page.getByRole('heading', { name: 'Git + GitHub 课程笔记验收' })).toBeVisible()
@@ -202,7 +210,88 @@ test('completes the production Bilibili course workflow', async ({ page }) => {
   await page.screenshot({ path: `${ARTIFACT_DIR}/course-result.png`, fullPage: false })
 
   const downloadPromise = page.waitForEvent('download')
-  await page.getByRole('button', { name: 'Obsidian' }).click()
+  await page.getByRole('button', { name: '新建 Vault' }).click()
   const download = await downloadPromise
-  await download.saveAs(`${ARTIFACT_DIR}/course-notes.zip`)
+  const initialZipPath = `${ARTIFACT_DIR}/course-notes.zip`
+  await download.saveAs(initialZipPath)
+
+  const initialZip = await JSZip.loadAsync(await readFile(initialZipPath))
+  const lessonId = 'bilibili-BV1ySLc6QEcB-p1'
+  const lessonPath = `BibiGPT-Vault/lessons/${lessonId}.md`
+  const initialManifest = JSON.parse(await initialZip.file('BibiGPT-Vault/manifest.json')!.async('string')) as {
+    generatedAt: string
+    lessons: Array<{
+      lessonId: string
+      sourceFingerprint: string
+      sourceMode: string
+      duration: number
+      status: string
+      transcribedUntil: number
+      transcriptSegmentCount: number
+      chunkCount: number
+    }>
+    artifacts: Array<{ path: string; status: string }>
+  }
+  expect(initialManifest.generatedAt).toBe(job.updatedAt)
+  expect(initialManifest.lessons).toContainEqual(
+    expect.objectContaining({
+      lessonId,
+      sourceFingerprint: job.sourceFingerprint,
+      sourceMode: 'local-asr',
+      duration: job.source?.duration,
+      status: 'complete',
+      transcribedUntil: job.transcribedUntil,
+      transcriptSegmentCount: job.transcript?.length,
+      chunkCount: job.chunkSummaries?.length,
+    }),
+  )
+  expect(initialManifest.artifacts.some((artifact) => artifact.path === 'manifest.json')).toBe(false)
+  expect(initialManifest.artifacts.every((artifact) => artifact.status === 'generated')).toBe(true)
+  expect(
+    Object.keys(initialZip.files).filter((path) => path.startsWith(`BibiGPT-Vault/assets/${lessonId}/`)),
+  ).toHaveLength(8)
+  expect(await initialZip.file(lessonPath)!.async('string')).toContain('Git + GitHub 课程笔记验收')
+  expect(await initialZip.file(`BibiGPT-Vault/transcripts/${lessonId}.md`)!.async('string')).toContain('segment id:')
+  expect(await initialZip.file(`BibiGPT-Vault/review/${lessonId}.md`)!.async('string')).toContain('## 自测问题')
+
+  const rerunDownloadPromise = page.waitForEvent('download')
+  await page.getByLabel('选择已有 BibiGPT Vault ZIP').setInputFiles(initialZipPath)
+  const rerunDownload = await rerunDownloadPromise
+  const rerunZipPath = `${ARTIFACT_DIR}/course-notes-rerun.zip`
+  await rerunDownload.saveAs(rerunZipPath)
+
+  const rerunZip = await JSZip.loadAsync(await readFile(rerunZipPath))
+  const rerunManifest = JSON.parse(await rerunZip.file('BibiGPT-Vault/manifest.json')!.async('string')) as {
+    lessons: unknown[]
+    artifacts: Array<{ status: string }>
+  }
+  expect(rerunManifest.lessons).toHaveLength(1)
+  expect(rerunManifest.artifacts.filter((artifact) => artifact.status === 'conflict')).toHaveLength(0)
+
+  const originalLesson = await rerunZip.file(lessonPath)!.async('string')
+  rerunZip.file(lessonPath, `<!-- 用户保留内容 -->\n${originalLesson}`)
+  rerunZip.file('BibiGPT-Vault/我的补充.md', '# 我的补充\n')
+  const editedZipPath = `${ARTIFACT_DIR}/course-notes-user-edited.zip`
+  await writeFile(editedZipPath, await rerunZip.generateAsync({ type: 'nodebuffer' }))
+
+  const updateDownloadPromise = page.waitForEvent('download')
+  await page.getByLabel('选择已有 BibiGPT Vault ZIP').setInputFiles(editedZipPath)
+  const updateDownload = await updateDownloadPromise
+  const updatedZipPath = `${ARTIFACT_DIR}/course-notes-updated.zip`
+  await updateDownload.saveAs(updatedZipPath)
+
+  const updatedZip = await JSZip.loadAsync(await readFile(updatedZipPath))
+  expect(await updatedZip.file(lessonPath)!.async('string')).toContain('<!-- 用户保留内容 -->')
+  expect(updatedZip.file(`${lessonPath}.bibigpt-new`)).not.toBeNull()
+  expect(updatedZip.file('BibiGPT-Vault/我的补充.md')).not.toBeNull()
+  const updatedManifest = JSON.parse(await updatedZip.file('BibiGPT-Vault/manifest.json')!.async('string')) as {
+    artifacts: Array<{ path: string; status: string; proposedPath?: string }>
+  }
+  expect(updatedManifest.artifacts).toContainEqual(
+    expect.objectContaining({
+      path: `lessons/${lessonId}.md`,
+      status: 'conflict',
+      proposedPath: `lessons/${lessonId}.md.bibigpt-new`,
+    }),
+  )
 })

@@ -1,5 +1,5 @@
-import { BookOpen, Captions, Copy, Download, Images, Trash2 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { BookOpen, Captions, Copy, Download, FileUp, Images, Trash2 } from 'lucide-react'
+import { useMemo, useRef, useState } from 'react'
 import { useToast } from '~/hooks/use-toast'
 import { formatTimestamp } from '~/lib/course/chunkTranscript'
 import {
@@ -38,7 +38,8 @@ const Frame = ({ frame, reason }: { frame: FrameReference; reason: string }) => 
 
 export function CourseResult({ job, onDelete }: { job: CourseJob; onDelete: () => void }) {
   const [view, setView] = useState<View>('notes')
-  const [exporting, setExporting] = useState(false)
+  const [exporting, setExporting] = useState<'new' | 'update' | null>(null)
+  const vaultInputRef = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
   const frames = useMemo(() => selectCourseFrames(job), [job])
 
@@ -57,11 +58,22 @@ export function CourseResult({ job, onDelete }: { job: CourseJob; onDelete: () =
     toast({ description: '课程笔记已复制。' })
   }
 
-  const exportObsidian = async () => {
+  const exportObsidian = async (existingZip?: File) => {
     try {
-      setExporting(true)
-      await downloadObsidianBundle(job, sourceUrl)
-      toast({ description: 'Obsidian 压缩包已生成。' })
+      setExporting(existingZip ? 'update' : 'new')
+      const result = await downloadObsidianBundle(job, sourceUrl, existingZip)
+      const proposalCount = result.conflicts.filter((artifact) => artifact.status === 'conflict').length
+      const modifiedCount = result.conflicts.filter((artifact) => artifact.status === 'modified').length
+      toast({
+        description:
+          proposalCount > 0
+            ? `Vault 已更新，${proposalCount} 个用户修改已保留，新版本写入 .bibigpt-new。`
+            : modifiedCount > 0
+            ? `Vault 已更新，并保留了其他课程中的 ${modifiedCount} 个用户修改。`
+            : existingZip
+            ? 'Obsidian Vault 已安全更新。'
+            : 'Obsidian Vault 已生成。',
+      })
     } catch (error) {
       toast({
         variant: 'destructive',
@@ -69,7 +81,7 @@ export function CourseResult({ job, onDelete }: { job: CourseJob; onDelete: () =
         description: error instanceof Error ? error.message : '请稍后重试',
       })
     } finally {
-      setExporting(false)
+      setExporting(null)
     }
   }
 
@@ -105,12 +117,35 @@ export function CourseResult({ job, onDelete }: { job: CourseJob; onDelete: () =
           </button>
           <button
             type="button"
-            onClick={exportObsidian}
-            disabled={exporting}
+            onClick={() => exportObsidian()}
+            disabled={exporting !== null}
             className="inline-flex h-10 items-center gap-2 rounded-md bg-slate-900 px-3 text-sm font-semibold text-white hover:bg-slate-700 disabled:cursor-wait disabled:opacity-60 dark:bg-slate-100 dark:text-slate-900"
           >
             <Download className="h-4 w-4" aria-hidden="true" />
-            {exporting ? '正在导出' : 'Obsidian'}
+            {exporting === 'new' ? '正在导出' : '新建 Vault'}
+          </button>
+          <input
+            ref={vaultInputRef}
+            type="file"
+            accept=".zip,application/zip"
+            className="sr-only"
+            aria-label="选择已有 BibiGPT Vault ZIP"
+            onChange={(event) => {
+              const file = event.currentTarget.files?.[0]
+              event.currentTarget.value = ''
+              if (file) {
+                void exportObsidian(file)
+              }
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => vaultInputRef.current?.click()}
+            disabled={exporting !== null}
+            className="inline-flex h-10 items-center gap-2 rounded-md border border-slate-300 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-wait disabled:opacity-60 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            <FileUp className="h-4 w-4" aria-hidden="true" />
+            {exporting === 'update' ? '正在更新' : '更新 Vault'}
           </button>
           <button
             type="button"
