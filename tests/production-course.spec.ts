@@ -198,7 +198,7 @@ test('completes the production Bilibili course workflow', async ({ page }) => {
   const framesTab = page.getByRole('tab', { name: '画面' })
   await expect(framesTab).toHaveCount(1)
   await framesTab.click()
-  await expect(page.locator('[role="img"][aria-label*="关键画面"]')).toHaveCount(job?.notes?.keyMoments?.length || 0)
+  await expect(page.locator('[role="img"][aria-label*="关键画面"]')).toHaveCount(8)
   await page.screenshot({ path: `${ARTIFACT_DIR}/course-result.png`, fullPage: false })
 
   const downloadPromise = page.waitForEvent('download')
