@@ -125,19 +125,20 @@ const loadInnertube = async () => {
   })
 }
 
-const normalizeFormats = (formats: unknown): YoutubeFormat[] =>
-  Array.isArray(formats)
-    ? formats.filter((format): format is YoutubeFormat => {
-        const candidate = format as Partial<YoutubeFormat>
-        return (
-          typeof candidate.itag === 'number' &&
-          typeof candidate.mime_type === 'string' &&
-          typeof candidate.decipher === 'function' &&
-          candidate.has_audio === true &&
-          candidate.has_video === false
-        )
-      })
-    : []
+const normalizeFormats = (formats: unknown): YoutubeFormat[] => {
+  if (!formats || typeof (formats as { [Symbol.iterator]?: unknown })[Symbol.iterator] !== 'function') {
+    return []
+  }
+  return Array.from(formats as Iterable<unknown>).filter((format): format is YoutubeFormat => {
+    const candidate = format as Partial<YoutubeFormat>
+    return (
+      typeof candidate.itag === 'number' &&
+      typeof candidate.mime_type === 'string' &&
+      candidate.mime_type.startsWith('audio/') &&
+      typeof candidate.decipher === 'function'
+    )
+  })
+}
 
 const selectAudioFormat = (formats: YoutubeFormat[], preferredItag?: number) => {
   const audioFormats = formats.filter(
